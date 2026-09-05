@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Patient Data">
+  <meta name="theme-color" content="#0E6655">
+  <title>Patient Data — Cloud Database Mobile</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F7; }
+    .card-item { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .card-item:active { transform: scale(0.98); }
+    .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(3px); }
+    input, select, textarea { font-size: 16px !important; } /* prevent iOS zoom */
+    .spinner { animation: spin 0.8s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body class="min-h-screen pb-16 text-gray-800">
+
+  <!-- ── Top Header Bar ────────────────────────────────────────────────── -->
+  <header class="bg-[#0E6655] text-white sticky top-0 z-30 shadow-md">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🏥</span>
+          <h1 class="text-lg font-bold leading-tight">Baby Scan Cloud</h1>
+        </div>
+        <p class="text-xs text-teal-200">Mobile Database &amp; Accounts Portal</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span id="connStatus" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-teal-800 text-teal-200">
+          <span class="w-2 h-2 mr-1.5 rounded-full bg-yellow-400"></span> Disconnected
+        </span>
+        <button onclick="openConfigModal()" class="p-2 rounded-lg bg-teal-800 hover:bg-teal-900 active:scale-95 transition" title="Connection Settings">
+          ⚙️
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Main Content Container ────────────────────────────────────────── -->
+  <main class="max-w-2xl mx-auto px-4 pt-3">
+
+    <!-- Top Module Navigation Tabs -->
+    <div class="grid grid-cols-4 gap-1 rounded-2xl bg-gray-200 p-1 mb-3 shadow-inner text-center">
+      <button id="tabPatientsBtn" onclick="switchTab('patients')"
+              class="py-2 text-[11px] font-bold rounded-xl bg-[#0E6655] text-white shadow-sm transition">
+        📋 Patients
+      </button>
+      <button id="tabPaymentsBtn" onclick="switchTab('payments')"
+              class="py-2 text-[11px] font-bold rounded-xl text-gray-600 hover:text-gray-900 transition">
+        💳 Income
+      </button>
+      <button id="tabExpensesBtn" onclick="switchTab('expenses')"
+              class="py-2 text-[11px] font-bold rounded-xl text-gray-600 hover:text-gray-900 transition">
+        💸 Expenses
+      </button>
+      <button id="tabSummaryBtn" onclick="switchTab('summary')"
+              class="py-2 text-[11px] font-bold rounded-xl text-gray-600 hover:text-gray-900 transition">
+        📊 Summary
+      </button>
+    </div>
+
+    <!-- Timeframe Filter Controls Bar -->
+    <div class="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 mb-3 space-y-2.5">
+      
+      <!-- Timeframe Mode Selector -->
+      <div class="flex items-center justify-between gap-2 border-b border-gray-100 pb-2">
+        <span class="text-xs font-bold text-gray-600">📅 Timeframe:</span>
+        <div class="flex gap-1">
+          <button id="tfDailyBtn" onclick="setTimeframeMode('daily')"
+                  class="px-2.5 py-1 text-xs font-bold rounded-lg bg-teal-50 text-[#0E6655] border border-teal-200">
+            Daily
+          </button>
+          <button id="tfMonthlyBtn" onclick="setTimeframeMode('monthly')"
+                  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 border border-gray-200">
+            Monthly
+          </button>
+          <button id="tfCustomBtn" onclick="setTimeframeMode('custom')"
+                  class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 border border-gray-200">
+            Custom
+          </button>
+        </div>
+      </div>
+
+      <!-- Dynamic Inputs based on Timeframe Mode -->
+      <div class="flex flex-wrap items-center gap-2">
+        
+        <!-- Daily Input -->
+        <div id="dailyPickerBox" class="flex-1">
+          <input type="date" id="dateFilter" onchange="loadCurrentTabData()"
+                 class="w-full py-1.5 px-3 rounded-xl border border-gray-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <!-- Monthly Input -->
+        <div id="monthlyPickerBox" class="hidden flex-1">
+          <input type="month" id="monthFilter" onchange="loadCurrentTabData()"
+                 class="w-full py-1.5 px-3 rounded-xl border border-gray-300 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <!-- Custom Range Inputs -->
+        <div id="customPickerBox" class="hidden flex-1 flex items-center gap-1">
+          <input type="date" id="startDateFilter" onchange="loadCurrentTabData()"
+                 class="w-full py-1.5 px-2 rounded-xl border border-gray-300 text-xs focus:ring-2 focus:ring-[#0E6655]">
+          <span class="text-xs text-gray-400">to</span>
+          <input type="date" id="endDateFilter" onchange="loadCurrentTabData()"
+                 class="w-full py-1.5 px-2 rounded-xl border border-gray-300 text-xs focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <button onclick="resetDateFilter()" class="px-2.5 py-1.5 text-xs font-medium rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200">
+          Reset
+        </button>
+
+        <button onclick="loadCurrentTabData()" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-[#0E6655] text-white hover:bg-teal-800 active:scale-95 transition flex items-center gap-1">
+          🔄 Refresh
+        </button>
+      </div>
+
+      <!-- Search Input (For Patients & Income) -->
+      <div id="searchBox" class="relative pt-1">
+        <input type="text" id="searchInput" onkeyup="handleSearch()"
+               placeholder="🔍 Search name, phone, TECHO ID, doctor..."
+               class="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-[#0E6655]">
+      </div>
+
+    </div>
+
+    <!-- ── Summary Banners ────────────────────────────────────────────── -->
+    
+    <!-- 1. Income Summary Banner -->
+    <div id="incomeBanner" class="hidden bg-slate-900 text-white p-3.5 rounded-2xl shadow-md mb-3 border border-slate-800 space-y-2">
+      <div class="grid grid-cols-3 gap-2 text-center border-b border-slate-800 pb-2">
+        <div>
+          <p class="text-[10px] text-emerald-400 font-bold uppercase">💵 Cash Received</p>
+          <p id="sumCash" class="text-base font-extrabold text-emerald-400">₹0</p>
+        </div>
+        <div>
+          <p class="text-[10px] text-blue-400 font-bold uppercase">📱 UPI Received</p>
+          <p id="sumUPI" class="text-base font-extrabold text-blue-400">₹0</p>
+        </div>
+        <div>
+          <p class="text-[10px] text-amber-400 font-bold uppercase">💰 Total Income</p>
+          <p id="sumTotalIncome" class="text-base font-extrabold text-amber-400">₹0</p>
+        </div>
+      </div>
+      <div class="flex justify-between items-center text-[11px] text-slate-400 px-1">
+        <span>Earlier Advances (Ref): <strong id="sumAdvEarlier" class="text-slate-200">₹0</strong></span>
+        <span>Outstanding Due: <strong id="sumDueBalance" class="text-rose-400">₹0</strong></span>
+      </div>
+    </div>
+
+    <!-- 2. Expenses Summary Banner -->
+    <div id="expenseBanner" class="hidden bg-slate-900 text-white p-3.5 rounded-2xl shadow-md mb-3 border border-slate-800">
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="text-xs font-bold text-rose-400 uppercase tracking-wider">💸 Expenses Summary</h4>
+        <button onclick="openAddExpenseModal()" class="px-3 py-1 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700 active:scale-95 transition">
+          ➕ Add Expense
+        </button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold">Cash Expenses</p>
+          <p id="expCash" class="text-sm font-bold text-slate-200">₹0</p>
+        </div>
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold">UPI / Bank Expenses</p>
+          <p id="expUPI" class="text-sm font-bold text-slate-200">₹0</p>
+        </div>
+        <div>
+          <p class="text-[10px] text-rose-400 font-bold uppercase">Total Expenses</p>
+          <p id="expTotal" class="text-base font-extrabold text-rose-400">₹0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Full Financial Report Summary (Income vs Expense) -->
+    <div id="summaryBanner" class="hidden bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-3 space-y-4">
+      <h3 class="text-sm font-bold text-gray-800 flex items-center justify-between">
+        <span>📊 Financial Overview</span>
+        <span id="summaryPeriodTag" class="text-xs font-medium text-[#0E6655] bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">Daily View</span>
+      </h3>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Income Card -->
+        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-1">
+          <p class="text-[11px] font-bold text-emerald-900 uppercase">💰 Income / Collection</p>
+          <p id="repIncomeTotal" class="text-lg font-extrabold text-emerald-700">₹0</p>
+          <div class="text-[10px] text-emerald-800 pt-1 border-t border-emerald-200 space-y-0.5">
+            <div class="flex justify-between"><span>Cash:</span> <strong id="repIncomeCash">₹0</strong></div>
+            <div class="flex justify-between"><span>UPI / Online:</span> <strong id="repIncomeUPI">₹0</strong></div>
+          </div>
+        </div>
+
+        <!-- Expense Card -->
+        <div class="bg-rose-50 p-3 rounded-xl border border-rose-200 space-y-1">
+          <p class="text-[11px] font-bold text-rose-900 uppercase">💸 Clinic Expenses</p>
+          <p id="repExpenseTotal" class="text-lg font-extrabold text-rose-700">₹0</p>
+          <div class="text-[10px] text-rose-800 pt-1 border-t border-rose-200 space-y-0.5">
+            <div class="flex justify-between"><span>Cash:</span> <strong id="repExpenseCash">₹0</strong></div>
+            <div class="flex justify-between"><span>UPI / Bank:</span> <strong id="repExpenseUPI">₹0</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Net Profit Card -->
+      <div id="netProfitBox" class="bg-teal-900 text-white p-3.5 rounded-xl flex items-center justify-between">
+        <div>
+          <p class="text-[10px] text-teal-200 font-bold uppercase tracking-wider">📈 Net Profit / Balance Surplus</p>
+          <p id="repNetProfit" class="text-xl font-extrabold text-emerald-300">₹0</p>
+        </div>
+        <div class="text-right">
+          <span id="profitBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white">Profit</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats & Record Count Header -->
+    <div class="flex items-center justify-between text-xs text-gray-500 mb-2 px-1">
+      <span id="recordCount">Showing 0 records</span>
+      <span id="lastUpdated">Updated: Never</span>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingSpinner" class="hidden text-center py-10">
+      <div class="spinner inline-block w-8 h-8 border-4 border-[#0E6655] border-t-transparent rounded-full"></div>
+      <p id="loadingText" class="text-sm text-gray-500 mt-2 font-medium">Fetching records...</p>
+    </div>
+
+    <!-- Record Cards List Container -->
+    <div id="cardsList" class="space-y-2.5"></div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden text-center py-12 bg-white rounded-2xl border border-gray-200 p-6">
+      <div class="text-4xl mb-2">📋</div>
+      <h3 class="text-base font-bold text-gray-700">No Records Found</h3>
+      <p class="text-xs text-gray-500 mt-1">Try selecting a different date range or adjusting your search term.</p>
+      <button onclick="openConfigModal()" class="mt-4 px-4 py-2 text-xs font-bold rounded-xl bg-[#0E6655] text-white">
+        ⚙️ Configure Connection
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ── Configuration & Login Modal ────────────────────────────────────── -->
+  <div id="configModal" class="fixed inset-0 z-50 hidden modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden animate-fade-in">
+      <div class="bg-[#0E6655] text-white px-5 py-4 flex items-center justify-between">
+        <h3 class="font-bold text-base">🔑 Supabase Connection Settings</h3>
+        <button onclick="closeConfigModal()" class="text-teal-200 hover:text-white text-lg">✕</button>
+      </div>
+
+      <div class="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Supabase Project URL</label>
+          <input type="text" id="cfgUrl" placeholder="https://your-project.supabase.co"
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Anon API Key (Public Key)</label>
+          <input type="text" id="cfgKey" placeholder="eyJhbGciOiJIUzI1Ni..."
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-xs focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">User Email</label>
+          <input type="email" id="cfgEmail" placeholder="doctor@clinic.com"
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Password</label>
+          <input type="password" id="cfgPassword" placeholder="••••••••"
+                 class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-[#0E6655]">
+        </div>
+
+        <div id="cfgStatus" class="text-xs font-bold text-center"></div>
+
+        <div class="pt-2 flex gap-2">
+          <button onclick="saveAndAuthenticate()" class="flex-1 py-2.5 rounded-xl bg-[#0E6655] text-white font-bold text-sm hover:bg-teal-800">
+            🔐 Save &amp; Log In
+          </button>
+          <button onclick="closeConfigModal()" class="px-4 py-2.5 rounded-xl bg-gray-200 text-gray-700 font-semibold text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Add Expense Modal ──────────────────────────────────────────────── -->
+  <div id="addExpenseModal" class="fixed inset-0 z-50 hidden modal-backdrop flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
+      <div class="bg-rose-700 text-white px-5 py-4 flex items-center justify-between">
+        <h3 class="font-bold text-base">➕ Add Clinic Expense</h3>
+        <button onclick="closeAddExpenseModal()" class="text-rose-200 hover:text-white text-lg">✕</button>
+      </div>
+
+      <div class="p-5 space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Expense Date</label>
+          <input type="date" id="expDateInput" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Category</label>
+          <select id="expCatInput" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+            <option>Clinic Supplies / Medicines</option>
+            <option>Staff Salaries &amp; Wages</option>
+            <option>Electricity / Utility Bills</option>
+            <option>Clinic Maintenance &amp; Repairs</option>
+            <option>Tea &amp; Refreshments</option>
+            <option>Printing, Stationery &amp; Paper</option>
+            <option>Software / IT &amp; Internet</option>
+            <option>Rent</option>
+            <option>Equipment &amp; Machines</option>
+            <option>Miscellaneous / Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Description / Particulars</label>
+          <input type="text" id="expDescInput" placeholder="e.g. Ultrasound Gel bottles purchase" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Amount (₹)</label>
+            <input type="number" id="expAmountInput" placeholder="0" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm font-bold text-rose-700">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1">Payment Mode</label>
+            <select id="expModeInput" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+              <option>Cash</option>
+              <option>UPI / Online</option>
+              <option>Bank Transfer</option>
+              <option>Card</option>
+              <option>Cheque</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 mb-1">Paid To / Recipient</label>
+          <input type="text" id="expPaidToInput" placeholder="Supplier / Vendor name" class="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm">
+        </div>
+
+        <div id="expStatus" class="text-xs font-bold text-center"></div>
+
+        <div class="pt-2 flex gap-2">
+          <button onclick="submitNewExpense()" class="flex-1 py-2.5 rounded-xl bg-rose-700 text-white font-bold text-sm hover:bg-rose-800">
+            💾 Save Expense
+          </button>
+          <button onclick="closeAddExpenseModal()" class="px-4 py-2.5 rounded-xl bg-gray-200 text-gray-700 font-semibold text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Item Details Sheet Modal ──────────────────────────────────────── -->
+  <div id="detailModal" class="fixed inset-0 z-50 hidden modal-backdrop flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      
+      <div class="bg-[#0E6655] text-white px-5 py-4 flex items-center justify-between">
+        <div>
+          <h3 id="modalTitle" class="font-bold text-lg leading-tight">Detail View</h3>
+          <p id="modalSubTitle" class="text-xs text-teal-200">Information Breakdown</p>
+        </div>
+        <button onclick="closeDetailModal()" class="w-8 h-8 rounded-full bg-teal-800 text-white flex items-center justify-center font-bold">✕</button>
+      </div>
+
+      <div id="modalBody" class="p-5 overflow-y-auto space-y-4 text-sm">
+        <!-- Filled dynamically -->
+      </div>
+
+      <div class="p-4 bg-gray-50 border-t border-gray-200 text-right">
+        <button onclick="closeDetailModal()" class="px-5 py-2 rounded-xl bg-gray-700 text-white font-bold text-xs">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JavaScript Application Logic -->
+  <script>
+    let activeTab = 'patients'; // 'patients', 'payments', 'expenses', 'summary'
+    let timeframeMode = 'daily'; // 'daily', 'monthly', 'custom'
+    let rawData = [];
+    let rawExpenses = [];
+    let currentAuthToken = "";
+
+    const DEFAULT_URL = localStorage.getItem('sb_url') || 'https://dvplcvieujwktqebmkdh.supabase.co';
+    const DEFAULT_KEY = localStorage.getItem('sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2cGxjdmlldWp3a3RxZWJta2RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc0OTMsImV4cCI6MjEwNDEwMzQ5M30.GnSrw1giFNza2tNzuOZVjOabseNMQNi3M1M--7VHR_4';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('cfgUrl').value = DEFAULT_URL;
+      document.getElementById('cfgKey').value = DEFAULT_KEY;
+      document.getElementById('cfgEmail').value = localStorage.getItem('sb_email') || '';
+      document.getElementById('cfgPassword').value = localStorage.getItem('sb_pwd') || '';
+      
+      currentAuthToken = localStorage.getItem('sb_token') || '';
+
+      // Initialize default date picker to Today (YYYY-MM-DD)
+      const todayISO = new Date().toISOString().split('T')[0];
+      document.getElementById('dateFilter').value = todayISO;
+      document.getElementById('expDateInput').value = todayISO;
+      document.getElementById('monthFilter').value = todayISO.substring(0, 7);
+
+      if (DEFAULT_URL && DEFAULT_KEY) {
+        loadCurrentTabData();
+      } else {
+        openConfigModal();
+      }
+    });
+
+    function getHeaders() {
+      const key = document.getElementById('cfgKey').value.trim() || DEFAULT_KEY;
+      const headers = {
+        'apikey': key,
+        'Content-Type': 'application/json'
+      };
+      if (currentAuthToken) {
+        headers['Authorization'] = `Bearer ${currentAuthToken}`;
+      } else {
+        headers['Authorization'] = `Bearer ${key}`;
+      }
+      return headers;
+    }
+
+    // ── Timeframe Mode Switcher ──────────────────────────────────────────────
+    function setTimeframeMode(mode) {
+      timeframeMode = mode;
+      const dBtn = document.getElementById('tfDailyBtn');
+      const mBtn = document.getElementById('tfMonthlyBtn');
+      const cBtn = document.getElementById('tfCustomBtn');
+
+      const dBox = document.getElementById('dailyPickerBox');
+      const mBox = document.getElementById('monthlyPickerBox');
+      const cBox = document.getElementById('customPickerBox');
+
+      dBtn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 border border-gray-200';
+      mBtn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 border border-gray-200';
+      cBtn.className = 'px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-600 border border-gray-200';
+      dBox.classList.add('hidden');
+      mBox.classList.add('hidden');
+      cBox.classList.add('hidden');
+
+      if (mode === 'daily') {
+        dBtn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-teal-50 text-[#0E6655] border border-teal-200';
+        dBox.classList.remove('hidden');
+      } else if (mode === 'monthly') {
+        mBtn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-teal-50 text-[#0E6655] border border-teal-200';
+        mBox.classList.remove('hidden');
+      } else if (mode === 'custom') {
+        cBtn.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-teal-50 text-[#0E6655] border border-teal-200';
+        cBox.classList.remove('hidden');
+      }
+
+      loadCurrentTabData();
+    }
+
+    // Helper: Convert YYYY-MM-DD -> DD-MM-YYYY
+    function toDDMMYYYY(isoStr) {
+      if (!isoStr) return "";
+      const p = isoStr.split('-');
+      return p.length === 3 ? `${p[2]}-${p[1]}-${p[0]}` : isoStr;
+    }
+
+    // Helper: Convert DD-MM-YYYY or ISO -> Sortable YYYY-MM-DD
+    function toSortableYYYYMMDD(dStr) {
+      if (!dStr) return "";
+      dStr = dStr.trim();
+      if (dStr.includes('-')) {
+        const p = dStr.split('-');
+        if (p[0].length === 4) return dStr; // already YYYY-MM-DD
+        if (p[2] && p[2].length === 4) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+      }
+      return dStr;
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      const pBtn = document.getElementById('tabPatientsBtn');
+      const payBtn = document.getElementById('tabPaymentsBtn');
+      const expBtn = document.getElementById('tabExpensesBtn');
+      const sumBtn = document.getElementById('tabSummaryBtn');
+
+      const incBanner = document.getElementById('incomeBanner');
+      const expBanner = document.getElementById('expenseBanner');
+      const sumBanner = document.getElementById('summaryBanner');
+      const searchBox = document.getElementById('searchBox');
+
+      const activeClass = 'py-2 text-[11px] font-bold rounded-xl bg-[#0E6655] text-white shadow-sm transition';
+      const inactiveClass = 'py-2 text-[11px] font-bold rounded-xl text-gray-600 hover:text-gray-900 transition';
+
+      pBtn.className = inactiveClass;
+      payBtn.className = inactiveClass;
+      expBtn.className = inactiveClass;
+      sumBtn.className = inactiveClass;
+
+      incBanner.classList.add('hidden');
+      expBanner.classList.add('hidden');
+      sumBanner.classList.add('hidden');
+      searchBox.classList.remove('hidden');
+
+      if (tab === 'patients') {
+        pBtn.className = activeClass;
+      } else if (tab === 'payments') {
+        payBtn.className = activeClass;
+        incBanner.classList.remove('hidden');
+      } else if (tab === 'expenses') {
+        expBtn.className = activeClass;
+        expBanner.classList.remove('hidden');
+      } else if (tab === 'summary') {
+        sumBtn.className = activeClass;
+        sumBanner.classList.remove('hidden');
+        searchBox.classList.add('hidden');
+      }
+
+      loadCurrentTabData();
+    }
+
+    function loadCurrentTabData() {
+      if (activeTab === 'patients') loadPatients();
+      else if (activeTab === 'payments') loadPayments();
+      else if (activeTab === 'expenses') loadExpenses();
+      else if (activeTab === 'summary') loadFullFinancialSummary();
+    }
+
+    async function saveAndAuthenticate() {
+      const url = document.getElementById('cfgUrl').value.trim();
+      const key = document.getElementById('cfgKey').value.trim();
+      const email = document.getElementById('cfgEmail').value.trim();
+      const pwd = document.getElementById('cfgPassword').value.trim();
+
+      const statusEl = document.getElementById('cfgStatus');
+      statusEl.textContent = 'Connecting...';
+      statusEl.className = 'text-xs font-bold text-center text-blue-600';
+
+      if (!url || !key) {
+        statusEl.textContent = '❌ URL and Anon Key are required.';
+        statusEl.className = 'text-xs font-bold text-center text-red-600';
+        return;
+      }
+
+      localStorage.setItem('sb_url', url);
+      localStorage.setItem('sb_key', key);
+      if (email) localStorage.setItem('sb_email', email);
+      if (pwd) localStorage.setItem('sb_pwd', pwd);
+
+      if (email && pwd) {
+        try {
+          const authResp = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': key },
+            body: JSON.stringify({ email, password: pwd })
+          });
+
+          if (authResp.ok) {
+            const authData = await authResp.json();
+            currentAuthToken = authData.access_token;
+            localStorage.setItem('sb_token', currentAuthToken);
+            statusEl.textContent = '✓ Authenticated successfully!';
+            statusEl.className = 'text-xs font-bold text-center text-green-600';
+          } else {
+            statusEl.textContent = '⚠️ Invalid credentials, trying public API...';
+            statusEl.className = 'text-xs font-bold text-center text-amber-600';
+          }
+        } catch (err) {
+          console.warn('Auth check skipped:', err);
+        }
+      }
+
+      setTimeout(() => {
+        closeConfigModal();
+        loadCurrentTabData();
+      }, 500);
+    }
+
+    // ── 1. Load Patients ───────────────────────────────────────────────────
+    async function loadPatients() {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+
+      document.getElementById('loadingText').textContent = 'Fetching patient records...';
+      document.getElementById('loadingSpinner').classList.remove('hidden');
+      document.getElementById('cardsList').innerHTML = '';
+      document.getElementById('emptyState').classList.add('hidden');
+
+      let endpoint = `${url}/rest/v1/patients?select=*&order=id.desc&limit=100`;
+      
+      if (timeframeMode === 'daily') {
+        const dateVal = document.getElementById('dateFilter').value;
+        if (dateVal) endpoint += `&Visit_Date=eq.${toDDMMYYYY(dateVal)}`;
+      }
+
+      try {
+        const resp = await fetch(endpoint, { headers: getHeaders() });
+
+        if (resp.ok) {
+          rawData = await resp.json();
+          renderPatients(rawData);
+          updateConnStatus(true);
+        } else {
+          updateConnStatus(false);
+          document.getElementById('emptyState').classList.remove('hidden');
+        }
+      } catch (err) {
+        updateConnStatus(false);
+        document.getElementById('emptyState').classList.remove('hidden');
+      } finally {
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        document.getElementById('lastUpdated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+      }
+    }
+
+    function renderPatients(patients) {
+      const listEl = document.getElementById('cardsList');
+      listEl.innerHTML = '';
+
+      document.getElementById('recordCount').textContent = `Showing ${patients.length} patient records`;
+
+      if (!patients || patients.length === 0) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('emptyState').classList.add('hidden');
+
+      patients.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-200 card-item cursor-pointer';
+        card.onclick = () => showPatientDetail(p);
+
+        const serial = p.Serial_No || `#${p.id}`;
+        const date = p.Visit_Date || 'N/A';
+        const name = p.Patient_Name || 'Unnamed Patient';
+        const age = p.Patient_Age ? `${p.Patient_Age} yrs` : '';
+        const phone = p.Patient_Phone || '';
+        const doctor = p.Referred_By || 'Self / Direct';
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md bg-teal-100 text-[#0E6655] font-bold text-xs">S.No: ${serial}</span>
+                <span class="text-xs text-gray-400">📅 ${date}</span>
+              </div>
+              <h4 class="font-bold text-base text-gray-900 mt-1">${name} <span class="text-xs font-normal text-gray-500">${age}</span></h4>
+              <p class="text-xs text-gray-500 mt-0.5">👨‍⚕️ Ref: ${doctor}</p>
+            </div>
+            ${phone ? `
+              <a href="tel:${phone}" onclick="event.stopPropagation()" class="p-2 rounded-xl bg-teal-50 text-[#0E6655] font-bold text-xs flex items-center gap-1 active:scale-95">
+                📞 Call
+              </a>
+            ` : ''}
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    // ── 2. Load Payments & Income (EXACT DESKTOP APP LOGIC) ─────────────────
+    async function loadPayments() {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+
+      document.getElementById('loadingText').textContent = 'Fetching payment records...';
+      document.getElementById('loadingSpinner').classList.remove('hidden');
+      document.getElementById('cardsList').innerHTML = '';
+      document.getElementById('emptyState').classList.add('hidden');
+
+      let endpoint = `${url}/rest/v1/payments?select=*&order=id.desc&limit=300`;
+
+      try {
+        const resp = await fetch(endpoint, { headers: getHeaders() });
+
+        if (resp.ok) {
+          let payments = await resp.json();
+          rawData = filterPaymentsByTimeframe(payments);
+          renderPayments(rawData);
+          updateConnStatus(true);
+        } else {
+          updateConnStatus(false);
+          document.getElementById('emptyState').classList.remove('hidden');
+        }
+      } catch (err) {
+        updateConnStatus(false);
+        document.getElementById('emptyState').classList.remove('hidden');
+      } finally {
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        document.getElementById('lastUpdated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+      }
+    }
+
+    function filterPaymentsByTimeframe(payments) {
+      if (timeframeMode === 'daily') {
+        const targetDD = toDDMMYYYY(document.getElementById('dateFilter').value);
+        if (!targetDD) return payments;
+
+        return payments.filter(pm => {
+          const colDate = pm.collected_date || "";
+          const advDate = pm.advance_date || "";
+          const apptDate = pm.appointment_date || "";
+          return colDate === targetDD || advDate === targetDD || apptDate === targetDD;
+        });
+      } else if (timeframeMode === 'monthly') {
+        const mVal = document.getElementById('monthFilter').value; // YYYY-MM
+        if (!mVal) return payments;
+        const [year, month] = mVal.split('-');
+        const targetMMYYYY = `${month}-${year}`;
+
+        return payments.filter(pm => {
+          return (pm.collected_date && pm.collected_date.endsWith(targetMMYYYY)) ||
+                 (pm.advance_date && pm.advance_date.endsWith(targetMMYYYY)) ||
+                 (pm.appointment_date && pm.appointment_date.endsWith(targetMMYYYY));
+        });
+      } else if (timeframeMode === 'custom') {
+        const startISO = document.getElementById('startDateFilter').value;
+        const endISO = document.getElementById('endDateFilter').value;
+        if (!startISO || !endISO) return payments;
+
+        return payments.filter(pm => {
+          const dStr = pm.collected_date || pm.advance_date || pm.appointment_date || "";
+          const sortableD = toSortableYYYYMMDD(dStr);
+          return sortableD >= startISO && sortableD <= endISO;
+        });
+      }
+      return payments;
+    }
+
+    function renderPayments(payments) {
+      const listEl = document.getElementById('cardsList');
+      listEl.innerHTML = '';
+
+      document.getElementById('recordCount').textContent = `Showing ${payments.length} payment entries`;
+
+      let cashToday = 0;
+      let upiToday = 0;
+      let advEarlierTotal = 0;
+      let totalDueBalance = 0;
+
+      const targetDD = timeframeMode === 'daily' ? toDDMMYYYY(document.getElementById('dateFilter').value) : "";
+
+      if (!payments || payments.length === 0) {
+        document.getElementById('sumCash').textContent = '₹0';
+        document.getElementById('sumUPI').textContent = '₹0';
+        document.getElementById('sumTotalIncome').textContent = '₹0';
+        document.getElementById('sumAdvEarlier').textContent = '₹0';
+        document.getElementById('sumDueBalance').textContent = '₹0';
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('emptyState').classList.add('hidden');
+
+      payments.forEach(p => {
+        const total = parseFloat(p.total_charges || 0);
+        const advAmt = parseFloat(p.advance_amount || 0);
+        const rcvd = parseFloat(p.collected_today || 0);
+        const rcvd2 = parseFloat(p.collected_today2 || 0);
+        const bal = parseFloat(p.balance || 0);
+
+        const advDate = p.advance_date || "";
+        const colDate = p.collected_date || "";
+        const mode = (p.collected_mode || p.advance_mode || "Cash").toUpperCase();
+        const isUPI = mode.includes("UPI") || mode.includes("ONLINE") || mode.includes("GPAY");
+
+        let cardClass = "bg-white border-gray-200";
+        let rcvdTodayDisplay = 0;
+        let isRedRow = false;
+        let isYellowRow = false;
+
+        if (timeframeMode === 'daily' && targetDD) {
+          // RED ROW: Today's patient whose payment was collected on an EARLIER date
+          if (p.appointment_date === targetDD && colDate && colDate !== targetDD && advDate && advDate !== targetDD) {
+            isRedRow = true;
+            cardClass = "bg-rose-50 border-rose-200";
+            rcvdTodayDisplay = 0; // Not collected today!
+            advEarlierTotal += (advAmt + rcvd);
+          }
+          // YELLOW ROW: Future appointment whose advance was collected TODAY
+          else if (p.is_advance_booking === 1 || (advDate === targetDD && p.appointment_date !== targetDD)) {
+            isYellowRow = true;
+            cardClass = "bg-amber-50 border-amber-200";
+            rcvdTodayDisplay = advAmt > 0 ? advAmt : rcvd;
+            if (isUPI) upiToday += rcvdTodayDisplay;
+            else cashToday += rcvdTodayDisplay;
+          }
+          // STANDARD ROW: Payment collected today
+          else {
+            rcvdTodayDisplay = rcvd + rcvd2;
+            if (advDate === targetDD) rcvdTodayDisplay += advAmt;
+
+            if (isUPI) upiToday += rcvdTodayDisplay;
+            else cashToday += rcvdTodayDisplay;
+          }
+        } else {
+          // Monthly or Custom Range
+          rcvdTodayDisplay = advAmt + rcvd + rcvd2;
+          if (isUPI) upiToday += rcvdTodayDisplay;
+          else cashToday += rcvdTodayDisplay;
+        }
+
+        totalDueBalance += (bal > 0 ? bal : 0);
+
+        const card = document.createElement('div');
+        card.className = `p-4 rounded-2xl shadow-sm border card-item cursor-pointer ${cardClass}`;
+        card.onclick = () => showPaymentDetail(p, rcvdTodayDisplay, bal, isRedRow, isYellowRow);
+
+        const dateShow = p.collected_date || p.advance_date || p.appointment_date || 'N/A';
+        const name = p.patient_name || 'Patient';
+        const scan = p.scan_description || 'Ultrasound Scan';
+        const doctor = p.referring_doctor || 'Direct';
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                ${isRedRow ? `
+                  <span class="px-2 py-0.5 rounded-md bg-rose-200 text-rose-900 font-bold text-[10px]">PREVIOUSLY PAID (₹0 TODAY)</span>
+                ` : isYellowRow ? `
+                  <span class="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-bold text-[10px]">ADVANCE BOOKING TODAY</span>
+                ` : `
+                  <span class="px-2 py-0.5 rounded-md ${isUPI ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'} font-bold text-xs">
+                    Received: ₹${rcvdTodayDisplay} (${mode})
+                  </span>
+                `}
+                <span class="text-xs text-gray-400">📅 ${dateShow}</span>
+              </div>
+              <h4 class="font-bold text-base text-gray-900 mt-1">${name}</h4>
+              <p class="text-xs text-gray-600 mt-0.5">🔬 ${scan}</p>
+              <p class="text-xs text-gray-400 mt-0.5">👨‍⚕️ ${doctor}</p>
+            </div>
+            
+            <div class="text-right">
+              <div class="text-sm font-extrabold text-gray-900">₹${total > 0 ? total : rcvdTodayDisplay}</div>
+              ${isRedRow ? `
+                <span class="inline-block mt-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold text-[10px]">Earlier Adv</span>
+              ` : bal > 0 ? `
+                <span class="inline-block mt-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold text-[10px]">Due: ₹${bal}</span>
+              ` : `
+                <span class="inline-block mt-1 px-2 py-0.5 rounded-md bg-green-100 text-green-700 font-bold text-[10px]">Paid</span>
+              `}
+            </div>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+
+      const totalIncome = cashToday + upiToday;
+      document.getElementById('sumCash').textContent = `₹${cashToday.toLocaleString()}`;
+      document.getElementById('sumUPI').textContent = `₹${upiToday.toLocaleString()}`;
+      document.getElementById('sumTotalIncome').textContent = `₹${totalIncome.toLocaleString()}`;
+      document.getElementById('sumAdvEarlier').textContent = `₹${advEarlierTotal.toLocaleString()}`;
+      document.getElementById('sumDueBalance').textContent = `₹${totalDueBalance.toLocaleString()}`;
+    }
+
+    // ── 3. Load Expenses ──────────────────────────────────────────────────
+    async function loadExpenses() {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+
+      document.getElementById('loadingText').textContent = 'Fetching expense records...';
+      document.getElementById('loadingSpinner').classList.remove('hidden');
+      document.getElementById('cardsList').innerHTML = '';
+      document.getElementById('emptyState').classList.add('hidden');
+
+      let endpoint = `${url}/rest/v1/expenses?select=*&order=id.desc&limit=300`;
+
+      try {
+        const resp = await fetch(endpoint, { headers: getHeaders() });
+
+        if (resp.ok) {
+          let expenses = await resp.json();
+          rawExpenses = filterExpensesByTimeframe(expenses);
+          renderExpenses(rawExpenses);
+          updateConnStatus(true);
+        } else {
+          updateConnStatus(false);
+          document.getElementById('emptyState').classList.remove('hidden');
+        }
+      } catch (err) {
+        updateConnStatus(false);
+        document.getElementById('emptyState').classList.remove('hidden');
+      } finally {
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        document.getElementById('lastUpdated').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+      }
+    }
+
+    function filterExpensesByTimeframe(expenses) {
+      if (timeframeMode === 'daily') {
+        const targetDD = toDDMMYYYY(document.getElementById('dateFilter').value);
+        if (!targetDD) return expenses;
+        return expenses.filter(e => (e.expense_date || "") === targetDD);
+      } else if (timeframeMode === 'monthly') {
+        const mVal = document.getElementById('monthFilter').value; // YYYY-MM
+        if (!mVal) return expenses;
+        const [year, month] = mVal.split('-');
+        const targetMMYYYY = `${month}-${year}`;
+        return expenses.filter(e => (e.expense_date || "").endsWith(targetMMYYYY));
+      } else if (timeframeMode === 'custom') {
+        const startISO = document.getElementById('startDateFilter').value;
+        const endISO = document.getElementById('endDateFilter').value;
+        if (!startISO || !endISO) return expenses;
+
+        return expenses.filter(e => {
+          const sortableD = toSortableYYYYMMDD(e.expense_date || "");
+          return sortableD >= startISO && sortableD <= endISO;
+        });
+      }
+      return expenses;
+    }
+
+    function renderExpenses(expenses) {
+      const listEl = document.getElementById('cardsList');
+      listEl.innerHTML = '';
+
+      document.getElementById('recordCount').textContent = `Showing ${expenses.length} expense records`;
+
+      let cashExp = 0;
+      let upiExp = 0;
+
+      if (!expenses || expenses.length === 0) {
+        document.getElementById('expCash').textContent = '₹0';
+        document.getElementById('expUPI').textContent = '₹0';
+        document.getElementById('expTotal').textContent = '₹0';
+        document.getElementById('emptyState').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('emptyState').classList.add('hidden');
+
+      expenses.forEach(e => {
+        const amt = parseFloat(e.amount || 0);
+        const mode = (e.payment_mode || "Cash").toUpperCase();
+        const isUPI = mode.includes("UPI") || mode.includes("ONLINE") || mode.includes("BANK") || mode.includes("CARD");
+
+        if (isUPI) upiExp += amt;
+        else cashExp += amt;
+
+        const card = document.createElement('div');
+        card.className = 'bg-white p-4 rounded-2xl shadow-sm border border-gray-200 card-item cursor-pointer';
+        card.onclick = () => showExpenseDetail(e);
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-xs">${e.category || 'General Expense'}</span>
+                <span class="text-xs text-gray-400">📅 ${e.expense_date || 'N/A'}</span>
+              </div>
+              <h4 class="font-bold text-base text-gray-900 mt-1">${e.description || 'Expense Entry'}</h4>
+              <p class="text-xs text-gray-500 mt-0.5">👤 Paid To: ${e.paid_to || 'N/A'} | Mode: <span class="font-semibold text-gray-700">${e.payment_mode || 'Cash'}</span></p>
+            </div>
+            
+            <div class="text-right">
+              <div class="text-base font-extrabold text-rose-700">₹${amt.toLocaleString()}</div>
+            </div>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+
+      const totalExp = cashExp + upiExp;
+      document.getElementById('expCash').textContent = `₹${cashExp.toLocaleString()}`;
+      document.getElementById('expUPI').textContent = `₹${upiExp.toLocaleString()}`;
+      document.getElementById('expTotal').textContent = `₹${totalExp.toLocaleString()}`;
+    }
+
+    // ── 4. Load Full Financial Summary (Income vs Expense) ───────────────────
+    async function loadFullFinancialSummary() {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+
+      document.getElementById('loadingText').textContent = 'Generating financial summary...';
+      document.getElementById('loadingSpinner').classList.remove('hidden');
+      document.getElementById('cardsList').innerHTML = '';
+
+      try {
+        const [pResp, eResp] = await Promise.all([
+          fetch(`${url}/rest/v1/payments?select=*&limit=300`, { headers: getHeaders() }),
+          fetch(`${url}/rest/v1/expenses?select=*&limit=300`, { headers: getHeaders() })
+        ]);
+
+        if (pResp.ok && eResp.ok) {
+          const payments = filterPaymentsByTimeframe(await pResp.json());
+          const expenses = filterExpensesByTimeframe(await eResp.json());
+          renderSummaryReport(payments, expenses);
+          updateConnStatus(true);
+        }
+      } catch (err) {
+        updateConnStatus(false);
+      } finally {
+        document.getElementById('loadingSpinner').classList.add('hidden');
+      }
+    }
+
+    function renderSummaryReport(payments, expenses) {
+      let incCash = 0, incUPI = 0;
+      const targetDD = timeframeMode === 'daily' ? toDDMMYYYY(document.getElementById('dateFilter').value) : "";
+
+      payments.forEach(p => {
+        const advAmt = parseFloat(p.advance_amount || 0);
+        const rcvd = parseFloat(p.collected_today || 0);
+        const rcvd2 = parseFloat(p.collected_today2 || 0);
+        const advDate = p.advance_date || "";
+        const colDate = p.collected_date || "";
+        const mode = (p.collected_mode || p.advance_mode || "Cash").toUpperCase();
+        const isUPI = mode.includes("UPI") || mode.includes("ONLINE") || mode.includes("GPAY");
+
+        let amt = 0;
+        if (timeframeMode === 'daily' && targetDD) {
+          if (p.appointment_date === targetDD && colDate && colDate !== targetDD && advDate && advDate !== targetDD) {
+            amt = 0; // Red row
+          } else if (p.is_advance_booking === 1 || (advDate === targetDD && p.appointment_date !== targetDD)) {
+            amt = advAmt > 0 ? advAmt : rcvd; // Yellow row
+          } else {
+            amt = rcvd + rcvd2;
+            if (advDate === targetDD) amt += advAmt;
+          }
+        } else {
+          amt = advAmt + rcvd + rcvd2;
+        }
+
+        if (isUPI) incUPI += amt;
+        else incCash += amt;
+      });
+
+      let expCash = 0, expUPI = 0;
+      expenses.forEach(e => {
+        const amt = parseFloat(e.amount || 0);
+        const mode = (e.payment_mode || "Cash").toUpperCase();
+        if (mode.includes("UPI") || mode.includes("ONLINE") || mode.includes("BANK") || mode.includes("CARD")) {
+          expUPI += amt;
+        } else {
+          expCash += amt;
+        }
+      });
+
+      const totalIncome = incCash + incUPI;
+      const totalExpense = expCash + expUPI;
+      const netProfit = totalIncome - totalExpense;
+
+      document.getElementById('repIncomeCash').textContent = `₹${incCash.toLocaleString()}`;
+      document.getElementById('repIncomeUPI').textContent = `₹${incUPI.toLocaleString()}`;
+      document.getElementById('repIncomeTotal').textContent = `₹${totalIncome.toLocaleString()}`;
+
+      document.getElementById('repExpenseCash').textContent = `₹${expCash.toLocaleString()}`;
+      document.getElementById('repExpenseUPI').textContent = `₹${expUPI.toLocaleString()}`;
+      document.getElementById('repExpenseTotal').textContent = `₹${totalExpense.toLocaleString()}`;
+
+      document.getElementById('repNetProfit').textContent = `₹${netProfit.toLocaleString()}`;
+
+      const badge = document.getElementById('profitBadge');
+      if (netProfit >= 0) {
+        badge.textContent = "Profit / Surplus";
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white";
+      } else {
+        badge.textContent = "Deficit / Loss";
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500 text-white";
+      }
+
+      document.getElementById('summaryPeriodTag').textContent = timeframeMode === 'daily' ? 'Daily View' : timeframeMode === 'monthly' ? 'Monthly View' : 'Custom Timeframe';
+    }
+
+    // ── Search Handler ──────────────────────────────────────────────────────
+    function handleSearch() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      if (!query) {
+        if (activeTab === 'patients') renderPatients(rawData);
+        else if (activeTab === 'payments') renderPayments(rawData);
+        else if (activeTab === 'expenses') renderExpenses(rawExpenses);
+        return;
+      }
+
+      if (activeTab === 'patients') {
+        renderPatients(rawData.filter(p => 
+          (p.Patient_Name && p.Patient_Name.toLowerCase().includes(query)) ||
+          (p.Patient_Phone && p.Patient_Phone.includes(query)) ||
+          (p.TECHO_ID && p.TECHO_ID.toLowerCase().includes(query)) ||
+          (p.Serial_No && p.Serial_No.toString().includes(query)) ||
+          (p.Patient_Address && p.Patient_Address.toLowerCase().includes(query))
+        ));
+      } else if (activeTab === 'payments') {
+        renderPayments(rawData.filter(p => 
+          (p.patient_name && p.patient_name.toLowerCase().includes(query)) ||
+          (p.patient_phone && p.patient_phone.includes(query)) ||
+          (p.scan_description && p.scan_description.toLowerCase().includes(query)) ||
+          (p.referring_doctor && p.referring_doctor.toLowerCase().includes(query))
+        ));
+      } else if (activeTab === 'expenses') {
+        renderExpenses(rawExpenses.filter(e => 
+          (e.category && e.category.toLowerCase().includes(query)) ||
+          (e.description && e.description.toLowerCase().includes(query)) ||
+          (e.paid_to && e.paid_to.toLowerCase().includes(query))
+        ));
+      }
+    }
+
+    function resetDateFilter() {
+      const todayISO = new Date().toISOString().split('T')[0];
+      document.getElementById('dateFilter').value = todayISO;
+      document.getElementById('monthFilter').value = todayISO.substring(0, 7);
+      document.getElementById('startDateFilter').value = "";
+      document.getElementById('endDateFilter').value = "";
+      loadCurrentTabData();
+    }
+
+    // ── Detail Views ────────────────────────────────────────────────────────
+    function showPatientDetail(p) {
+      document.getElementById('modalTitle').textContent = p.Patient_Name || 'Patient Detail';
+      document.getElementById('modalSubTitle').textContent = `Serial No: ${p.Serial_No || 'N/A'} | Date: ${p.Visit_Date || 'N/A'}`;
+
+      const bodyEl = document.getElementById('modalBody');
+      bodyEl.innerHTML = `
+        <div class="bg-teal-50 p-3.5 rounded-xl border border-teal-100 space-y-1.5">
+          <h5 class="font-bold text-teal-900 text-xs uppercase tracking-wider">👤 Personal Information</h5>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div><span class="text-gray-500">Age:</span> <strong>${p.Patient_Age || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">Phone:</span> <strong>${p.Patient_Phone || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">TECHO ID:</span> <strong>${p.TECHO_ID || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">ABHA No:</span> <strong>${p.ABHA_No || 'N/A'}</strong></div>
+          </div>
+          <div class="text-xs pt-1 border-t border-teal-200">
+            <span class="text-gray-500">Address:</span> <strong>${[p.Patient_Address, p.Patient_Village, p.Patient_Taluka, p.Patient_District].filter(Boolean).join(', ') || 'N/A'}</strong>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1.5">
+          <h5 class="font-bold text-gray-800 text-xs uppercase tracking-wider">🤰 Obstetric History</h5>
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <div><span class="text-gray-500">LMP:</span> <br><strong>${p.LMP || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">Weeks:</span> <br><strong>${p.Weeks_of_Pregnancy || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">Children:</span> <br><strong>${p.Children_Total || '0'}</strong></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1.5">
+          <h5 class="font-bold text-gray-800 text-xs uppercase tracking-wider">👨‍⚕️ Referral Details</h5>
+          <div class="text-xs space-y-1">
+            <div><span class="text-gray-500">Doctor:</span> <strong>${p.Referred_By || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">Hospital:</span> <strong>${p.Ref_Hospital_Name || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">Location:</span> <strong>${[p.Ref_Taluka, p.Ref_District].filter(Boolean).join(', ') || 'N/A'}</strong></div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function showPaymentDetail(p, rcvdToday, balance, isRed, isYellow) {
+      document.getElementById('modalTitle').textContent = p.patient_name || 'Payment Receipt';
+      document.getElementById('modalSubTitle').textContent = `ID: #${p.id} | Date: ${p.collected_date || p.advance_date || 'N/A'}`;
+
+      const bodyEl = document.getElementById('modalBody');
+      bodyEl.innerHTML = `
+        ${isRed ? `
+          <div class="bg-rose-100 p-3 rounded-xl border border-rose-300 text-rose-900 text-xs font-semibold">
+            🚨 Today's Patient - Payment Collected Earlier on ${p.advance_date || 'Previous Date'}. (₹0 Received Today)
+          </div>
+        ` : isYellow ? `
+          <div class="bg-amber-100 p-3 rounded-xl border border-amber-300 text-amber-900 text-xs font-semibold">
+            ⭐ Future Appointment Advance Received Today on ${p.advance_date || 'Today'}.
+          </div>
+        ` : ''}
+
+        <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200 space-y-2">
+          <h5 class="font-bold text-emerald-900 text-xs uppercase tracking-wider">💳 Billing &amp; Collection</h5>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div><span class="text-gray-500">Total Scan Fee:</span> <br><strong class="text-base text-gray-900">₹${p.total_charges || 0}</strong></div>
+            <div><span class="text-gray-500">Received Today:</span> <br><strong class="text-base text-emerald-700">₹${rcvdToday}</strong></div>
+            <div><span class="text-gray-500">Due Balance:</span> <br><strong class="text-base text-rose-700">₹${balance > 0 ? balance : 0}</strong></div>
+            <div><span class="text-gray-500">Payment Mode:</span> <br><strong>${p.collected_mode || p.advance_mode || 'Cash'}</strong></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1">
+          <h5 class="font-bold text-gray-800 text-xs uppercase tracking-wider">🔬 Procedure</h5>
+          <p class="text-xs font-semibold text-gray-900">${p.scan_description || 'Ultrasound Scan'}</p>
+          <p class="text-xs text-gray-500">Doctor: <strong>${p.referring_doctor || 'Direct'}</strong></p>
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    function showExpenseDetail(e) {
+      document.getElementById('modalTitle').textContent = e.category || 'Clinic Expense';
+      document.getElementById('modalSubTitle').textContent = `Expense ID: #${e.id} | Date: ${e.expense_date || 'N/A'}`;
+
+      const bodyEl = document.getElementById('modalBody');
+      bodyEl.innerHTML = `
+        <div class="bg-rose-50 p-4 rounded-xl border border-rose-200 space-y-2">
+          <h5 class="font-bold text-rose-900 text-xs uppercase tracking-wider">💸 Expense Breakdown</h5>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div><span class="text-gray-500">Amount Paid:</span> <br><strong class="text-base text-rose-700">₹${parseFloat(e.amount || 0).toLocaleString()}</strong></div>
+            <div><span class="text-gray-500">Payment Mode:</span> <br><strong>${e.payment_mode || 'Cash'}</strong></div>
+            <div><span class="text-gray-500">Paid To / Vendor:</span> <br><strong>${e.paid_to || 'N/A'}</strong></div>
+            <div><span class="text-gray-500">Category:</span> <br><strong>${e.category || 'General'}</strong></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-1">
+          <h5 class="font-bold text-gray-800 text-xs uppercase tracking-wider">📝 Description &amp; Notes</h5>
+          <p class="text-xs font-semibold text-gray-900">${e.description || 'No particulars entered'}</p>
+          ${e.notes ? `<p class="text-xs text-gray-500 mt-1">Notes: ${e.notes}</p>` : ''}
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.remove('hidden');
+    }
+
+    // ── Add Expense Logic ───────────────────────────────────────────────────
+    function openAddExpenseModal() {
+      document.getElementById('addExpenseModal').classList.remove('hidden');
+    }
+
+    function closeAddExpenseModal() {
+      document.getElementById('addExpenseModal').classList.add('hidden');
+    }
+
+    async function fetchNextExpenseId() {
+      try {
+        const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+        const resp = await fetch(`${url}/rest/v1/expenses?select=id&order=id.desc&limit=1`, {
+          headers: getHeaders()
+        });
+        if (resp.ok) {
+          const rows = await resp.json();
+          if (Array.isArray(rows) && rows.length > 0 && typeof rows[0].id === 'number') {
+            return rows[0].id + 1;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch max expense ID:', e);
+      }
+      return null;
+    }
+
+    async function submitNewExpense() {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+      const dtIso = document.getElementById('expDateInput').value;
+      const cat = document.getElementById('expCatInput').value;
+      const desc = document.getElementById('expDescInput').value.trim();
+      const amt = parseFloat(document.getElementById('expAmountInput').value || 0);
+      const mode = document.getElementById('expModeInput').value;
+      const paidTo = document.getElementById('expPaidToInput').value.trim();
+      const statusEl = document.getElementById('expStatus');
+
+      if (!dtIso || !amt || amt <= 0) {
+        statusEl.textContent = '❌ Valid Date and Amount (> 0) are required.';
+        statusEl.className = 'text-xs font-bold text-center text-rose-600';
+        return;
+      }
+
+      statusEl.textContent = 'Saving expense to Supabase...';
+      statusEl.className = 'text-xs font-bold text-center text-blue-600';
+
+      const payload = {
+        expense_date: toDDMMYYYY(dtIso),
+        category: cat,
+        description: desc || cat,
+        amount: amt,
+        payment_mode: mode,
+        paid_to: paidTo,
+        notes: "Added via Mobile App"
+      };
+
+      const nextId = await fetchNextExpenseId();
+      if (nextId) payload.id = nextId;
+
+      try {
+        const resp = await fetch(`${url}/rest/v1/expenses`, {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        if (resp.ok) {
+          statusEl.textContent = '✓ Expense saved successfully!';
+          statusEl.className = 'text-xs font-bold text-center text-emerald-600';
+          setTimeout(() => {
+            closeAddExpenseModal();
+            loadCurrentTabData();
+          }, 600);
+        } else {
+          const errBody = await resp.json().catch(() => ({}));
+          const msg = errBody.message || errBody.error_description || `HTTP ${resp.status}`;
+          if (resp.status === 401 || resp.status === 403 || msg.includes('row-level security')) {
+            openConfigModal();
+            statusEl.textContent = '❌ Auth Required. Please login in Settings ⚙️.';
+          } else {
+            statusEl.textContent = `❌ Failed: ${msg}`;
+          }
+          statusEl.className = 'text-xs font-bold text-center text-rose-600';
+        }
+      } catch (err) {
+        statusEl.textContent = `❌ Error: ${err.message}`;
+        statusEl.className = 'text-xs font-bold text-center text-rose-600';
+      }
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    function openConfigModal() {
+      document.getElementById('configModal').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('configModal').classList.add('hidden');
+    }
+
+    function updateConnStatus(connected) {
+      const el = document.getElementById('connStatus');
+      if (connected) {
+        el.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-800 text-emerald-100';
+        el.innerHTML = '<span class="w-2 h-2 mr-1.5 rounded-full bg-emerald-400"></span> Connected';
+      } else {
+        el.className = 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-900 text-rose-200';
+        el.innerHTML = '<span class="w-2 h-2 mr-1.5 rounded-full bg-rose-400"></span> Disconnected';
+      }
+    }
+  </script>
+
+</body>
+</html>
