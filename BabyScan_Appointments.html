@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Baby Scan">
+  <meta name="theme-color" content="#0E6655">
+  <title>Baby Scan — Cloud Appointments</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F7; }
+    .slot-card { transition: transform 0.1s, box-shadow 0.1s; }
+    .slot-card:active { transform: scale(0.97); }
+    .modal-sheet { transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+    .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(3px); }
+    input, select { font-size: 16px !important; } /* prevent iOS zoom */
+    .spinner { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+
+<body class="min-h-screen pb-16 text-gray-800">
+
+  <!-- ── Header Bar ───────────────────────────────────────────────────────── -->
+  <div class="bg-[#0E6655] text-white shadow-lg sticky top-0 z-30">
+    <div class="flex justify-between items-center px-4 py-3">
+      <div>
+        <div class="text-lg font-bold leading-tight flex items-center gap-1.5">
+          <span>🏥</span> Baby Scan
+        </div>
+        <div class="text-xs text-teal-200">Mobile Appointments (Supabase Cloud)</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="connStatusDot" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-teal-800 text-teal-200">
+          <span id="dot" class="w-2 h-2 mr-1 rounded-full bg-yellow-400"></span> <span id="connText">Offline</span>
+        </span>
+        <button onclick="openOffsetSheet()"
+                class="text-xs font-bold px-2.5 py-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
+                title="Configure Arrival Offsets">
+          ⏱ Offsets
+        </button>
+        <button onclick="openConfigModal()"
+                class="p-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
+                title="Cloud Database Settings">
+          ⚙️
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Status toast ─────────────────────────────────────────────────────── -->
+  <div id="toast" class="fixed top-16 left-4 right-4 z-50 hidden">
+    <div id="toastInner" class="rounded-xl px-4 py-3 text-sm font-semibold text-center shadow-lg"></div>
+  </div>
+
+  <!-- ── Date navigation ──────────────────────────────────────────────────── -->
+  <div class="bg-white border-b px-4 py-3 flex items-center justify-between shadow-sm">
+    <button onclick="navigate(-1)"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-teal-50 active:bg-teal-100 text-[#0E6655] text-xl font-bold">
+      ‹
+    </button>
+    <div class="text-center">
+      <div id="dateDisplay" class="text-base font-bold text-gray-800"></div>
+      <div id="dayDisplay" class="text-xs text-gray-500 mt-0.5"></div>
+    </div>
+    <button onclick="navigate(1)"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-teal-50 active:bg-teal-100 text-[#0E6655] text-xl font-bold">
+      ›
+    </button>
+  </div>
+
+  <!-- ── Quick action bar ─────────────────────────────────────────────────── -->
+  <div class="bg-white border-b px-4 py-2 flex gap-2">
+    <button onclick="goToday()"
+            class="flex-1 bg-[#0E6655] text-white text-sm font-semibold py-2 rounded-xl active:bg-teal-800 shadow-sm">
+      📅 Today
+    </button>
+    <button onclick="doRefresh()"
+            class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold py-2 rounded-xl active:bg-gray-300">
+      🔄 Refresh
+    </button>
+    <button onclick="openBlockSheet()"
+            class="flex-1 bg-orange-500 text-white text-sm font-semibold py-2 rounded-xl active:bg-orange-600 shadow-sm">
+      🚫 Block
+    </button>
+  </div>
+
+  <!-- ── Block banner ─────────────────────────────────────────────────────── -->
+  <div id="blockBanner" class="hidden px-3 pt-3">
+    <div class="bg-orange-100 border border-orange-300 rounded-2xl px-4 py-3 flex items-center justify-between">
+      <div>
+        <div id="blockBannerTitle" class="text-sm font-bold text-orange-700">⚠ Clinic Blocked</div>
+        <div id="blockBannerSub"   class="text-xs text-orange-500 mt-0.5"></div>
+      </div>
+      <button onclick="removeBlock()"
+              class="bg-orange-500 text-white text-xs px-3 py-2 rounded-xl font-bold active:bg-orange-700">
+        Remove Block
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Slots list ────────────────────────────────────────────────────────── -->
+  <div id="loadingRow" class="text-center text-gray-400 py-12 text-sm">
+    <span class="spinner">⏳</span> Connecting to Supabase Cloud…
+  </div>
+  <div id="slotsWrap" class="px-3 pt-3 pb-28 space-y-2"></div>
+
+  <!-- ── Modal backdrop ───────────────────────────────────────────────────── -->
+  <div id="backdrop" class="fixed inset-0 modal-backdrop z-40 hidden"
+       onclick="closeAnySheet()"></div>
+
+  <!-- ── Cloud DB Connection Settings Modal ──────────────────────────────── -->
+  <div id="configModal"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-[#0E6655] rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div class="font-bold text-lg">⚙️ Supabase Cloud Settings</div>
+        <div class="text-teal-200 text-xs mt-0.5">Project URL &amp; Login Credentials</div>
+      </div>
+      <button onclick="closeConfigModal()" class="w-8 h-8 bg-teal-800 rounded-full font-bold active:bg-teal-900">✕</button>
+    </div>
+    <div class="px-5 pt-4 pb-6 space-y-3 overflow-y-auto" style="max-height:75vh;">
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1 uppercase">Supabase Project URL</label>
+        <input id="cfgUrl" type="text" placeholder="https://xyz.supabase.co"
+               class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1 uppercase">Anon API Key (Public Key)</label>
+        <input id="cfgKey" type="text" placeholder="eyJhbGci..."
+               class="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs font-mono bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1 uppercase">User Email</label>
+        <input id="cfgEmail" type="email" placeholder="doctor@babyscan.com"
+               class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1 uppercase">Password</label>
+        <input id="cfgPassword" type="password" placeholder="••••••••"
+               class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500">
+      </div>
+      <div id="cfgStatus" class="text-xs font-bold text-center hidden py-1"></div>
+      <div class="flex gap-2 pt-2">
+        <button onclick="saveConfig()" class="flex-1 bg-[#0E6655] text-white py-3 rounded-xl font-bold text-sm active:bg-teal-800 shadow-md">
+          💾 Save &amp; Connect
+        </button>
+        <button onclick="closeConfigModal()" class="bg-gray-200 text-gray-700 px-4 py-3 rounded-xl font-bold text-sm active:bg-gray-300">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Block Time bottom sheet ──────────────────────────────────────────── -->
+  <div id="blockSheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-orange-500 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div class="font-bold text-lg">🚫 Block Time</div>
+        <div class="text-orange-100 text-xs mt-0.5">Mark clinic slots as unavailable</div>
+      </div>
+      <button onclick="closeBlockSheet()" class="w-8 h-8 bg-orange-700 rounded-full font-bold active:bg-orange-900">✕</button>
+    </div>
+    <div class="px-5 pt-4 pb-6 overflow-y-auto" style="max-height:70vh;">
+      <div class="space-y-4">
+        <div>
+          <div class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Quick Presets</div>
+          <div class="flex gap-2">
+            <button id="presetMorning" onclick="setBlockPreset('morning')"
+                    class="flex-1 border-2 border-gray-200 text-gray-500 text-xs font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors">
+              🌅 Morning
+            </button>
+            <button id="presetAfternoon" onclick="setBlockPreset('afternoon')"
+                    class="flex-1 border-2 border-gray-200 text-gray-500 text-xs font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors">
+              🌆 Afternoon
+            </button>
+            <button id="presetFullDay" onclick="setBlockPreset('fullday')"
+                    class="flex-1 border-2 border-gray-200 text-gray-500 text-xs font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors">
+              📅 Full Day
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Date</label>
+          <input id="b_date" type="date" onchange="updateBlockConfirm()"
+                 class="w-full border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-800 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
+        </div>
+
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Start Time</label>
+            <select id="b_start" onchange="updateBlockConfirm()"
+                    class="w-full border-2 border-orange-200 rounded-xl px-3 py-3 text-gray-800 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400"></select>
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">End Time</label>
+            <select id="b_end" onchange="updateBlockConfirm()"
+                    class="w-full border-2 border-orange-200 rounded-xl px-3 py-3 text-gray-800 bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400"></select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Reason (optional)</label>
+          <input id="b_reason" type="text" placeholder="e.g. Doctor unavailable, Equipment maintenance" oninput="updateBlockConfirm()"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
+        </div>
+
+        <div id="blockConfirmLine" class="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-xs text-orange-700 font-semibold text-center hidden"></div>
+        <div id="blockStatus" class="hidden rounded-xl px-4 py-3 text-xs font-semibold text-center"></div>
+
+        <div class="flex gap-3 pt-1">
+          <button id="blockSaveBtn" onclick="saveBlock()" class="flex-1 bg-orange-500 text-white py-3.5 rounded-xl font-bold text-base active:bg-orange-600 shadow-md">
+            🚫 Confirm Block
+          </button>
+          <button onclick="closeBlockSheet()" class="bg-gray-200 text-gray-600 px-5 py-3.5 rounded-xl font-bold active:bg-gray-300">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Appointment Offset bottom sheet ──────────────────────────────────── -->
+  <div id="offsetSheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-[#0E6655] rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div class="font-bold text-lg">⏱ Appointment Offsets</div>
+        <div class="text-teal-200 text-xs mt-0.5">Arrival time shown to patients, per slot</div>
+      </div>
+      <button onclick="closeOffsetSheet()" class="w-8 h-8 bg-teal-800 rounded-full font-bold active:bg-teal-900">✕</button>
+    </div>
+    <div class="px-5 pt-4 pb-6 overflow-y-auto" style="max-height:70vh;">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-xl px-4 py-3">
+          <label class="text-sm font-bold text-teal-800">Default (fallback)</label>
+          <div class="flex items-center gap-1">
+            <input id="offsetDefault" type="number" min="0" max="180"
+                   class="w-16 border-2 border-teal-300 rounded-lg px-2 py-1.5 text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
+            <span class="text-xs text-gray-500">min</span>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Per Time Slot</div>
+          <div id="offsetRows" class="divide-y divide-gray-100"></div>
+        </div>
+        <div class="flex gap-3 pt-1">
+          <button onclick="saveOffsets()" class="flex-1 bg-[#0E6655] text-white py-3.5 rounded-xl font-bold text-base active:bg-teal-800 shadow-md">
+            ✔ Save
+          </button>
+          <button onclick="closeOffsetSheet()" class="bg-gray-200 text-gray-600 px-5 py-3.5 rounded-xl font-bold active:bg-gray-300">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom-sheet appointment form ────────────────────────────────────── -->
+  <div id="sheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-[#0E6655] rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div id="sheetTitle" class="font-bold text-lg">New Appointment</div>
+        <div id="sheetSubtitle" class="text-teal-200 text-xs mt-0.5"></div>
+      </div>
+      <button onclick="closeModal()" class="w-8 h-8 bg-teal-800 rounded-full font-bold active:bg-teal-900">✕</button>
+    </div>
+
+    <!-- View mode (existing appointment) -->
+    <div id="viewMode" class="hidden px-5 py-4 space-y-3">
+      <div class="space-y-3">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">👤</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Patient</div>
+            <div id="v_patient" class="text-gray-800 font-semibold text-base"></div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">🔬</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Scan</div>
+            <div id="v_scan" class="text-gray-800 text-base"></div>
+          </div>
+        </div>
+        <div id="v_doctor_row" class="flex items-start gap-3 hidden">
+          <div class="text-2xl">👨‍⚕️</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Referring Doctor</div>
+            <div id="v_doctor" class="text-gray-800 text-base"></div>
+          </div>
+        </div>
+        <div id="v_phone_row" class="flex items-start gap-3 hidden">
+          <div class="text-2xl">📱</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Phone</div>
+            <div id="v_phone" class="text-gray-800 text-base"></div>
+          </div>
+        </div>
+        <div id="v_advance_row" class="flex items-start gap-3 hidden">
+          <div class="text-2xl">💰</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Advance Paid</div>
+            <div id="v_advance" class="text-gray-800 font-semibold text-green-700 text-base"></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="switchToEdit()" class="flex-1 bg-[#0E6655] text-white py-3 rounded-xl font-bold active:bg-teal-800 shadow-md">
+          ✏ Edit
+        </button>
+        <button id="waViewBtn" onclick="sendWhatsAppView()" class="bg-green-600 text-white px-4 py-3 rounded-xl font-bold active:bg-green-700 hidden shadow-md">
+          📱 WA
+        </button>
+        <button onclick="deleteAppt()" class="bg-red-500 text-white px-5 py-3 rounded-xl font-bold active:bg-red-600 shadow-md">
+          🗑
+        </button>
+      </div>
+    </div>
+
+    <!-- Edit / New mode -->
+    <div id="editMode" class="px-5 pt-4 pb-6 overflow-y-auto" style="max-height: 70vh;">
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">
+            Patient Name <span class="text-red-500">*</span>
+          </label>
+          <input id="f_patient" type="text" placeholder="Enter patient name" autocomplete="off"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">
+            Scan / Procedure <span class="text-red-500">*</span>
+          </label>
+          <input id="f_scan" type="text" placeholder="e.g. USG Obstetric, Anomaly Scan" autocomplete="off"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Referring Doctor</label>
+          <input id="f_doctor" type="text" placeholder="Doctor name (optional)" autocomplete="off"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Mobile Number</label>
+          <input id="f_phone" type="tel" placeholder="Patient phone (optional)"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+        </div>
+
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Advance Amount (₹)</label>
+            <input id="f_advance" type="number" inputmode="numeric" placeholder="0" min="0"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Payment Mode</label>
+            <select id="f_adv_mode"
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+              <option value="">None</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Date <span class="text-red-500">*</span></label>
+            <input id="f_date" type="date"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Time <span class="text-red-500">*</span></label>
+            <select id="f_time"
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gray-50">
+              <option value="">Select time</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="editStatus" class="hidden rounded-xl px-4 py-3 text-sm font-semibold text-center"></div>
+
+        <div class="flex gap-3 pt-1">
+          <button id="saveBtn" onclick="saveAppt()" class="flex-1 bg-[#0E6655] text-white py-3.5 rounded-xl font-bold text-base active:bg-teal-800 shadow-md">
+            💾 Save Appointment
+          </button>
+          <button id="cancelEditBtn" onclick="closeModal()" class="bg-gray-200 text-gray-600 px-4 py-3.5 rounded-xl font-bold active:bg-gray-300 hidden">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       JavaScript — Supabase Cloud Database Appointments Logic
+       ════════════════════════════════════════════════════════════════════════ -->
+  <script>
+    const SLOTS = [
+      '8:30 AM',
+      '9:00 AM',  '9:30 AM',  '10:00 AM', '10:30 AM',
+      '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+      '1:00 PM',  '1:30 PM',  '2:00 PM',  '2:30 PM',
+      '3:00 PM',  '3:30 PM',  '4:00 PM',  '4:30 PM',
+      '5:00 PM',  '5:30 PM',
+    ];
+
+    const DEFAULT_URL = localStorage.getItem('sb_url') || 'https://wkkgnicuztyummkbgasw.supabase.co';
+    const DEFAULT_KEY = localStorage.getItem('sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indra2duaWN1enR5dW1ta2JnYXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MzAzNTcsImV4cCI6MjEwNDEwNjM1N30.nL9I7ZH470BLuao-a12ZE4ZpQAUWoc4wBypeXD-gjG0';
+
+    let selectedDate = isoToday();       // YYYY-MM-DD
+    let cache        = {};               // YYYY-MM-DD → { slotStr: eventObj }
+    let blockCache   = {};               // YYYY-MM-DD → [{id, startMins, endMins, reason}]
+    let editingId    = null;             // Supabase Payment record ID being edited
+    let currentSlot  = null;
+    let currentAuthToken = localStorage.getItem('sb_token') || '';
+
+    // Boot
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('cfgUrl').value = DEFAULT_URL;
+      document.getElementById('cfgKey').value = DEFAULT_KEY;
+      document.getElementById('cfgEmail').value = localStorage.getItem('sb_email') || '';
+      document.getElementById('cfgPassword').value = localStorage.getItem('sb_pwd') || '';
+
+      fillTimeSelect();
+      renderDateNav();
+
+      if (DEFAULT_URL && DEFAULT_KEY) {
+        if (localStorage.getItem('sb_email') && localStorage.getItem('sb_pwd') && !currentAuthToken) {
+          doSupabaseLoginSilently().then(() => loadSlots());
+        } else {
+          loadSlots();
+        }
+      } else {
+        openConfigModal();
+      }
+    });
+
+    // Supabase REST Helper
+    async function supabaseFetch(endpoint, options = {}) {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+      const key = localStorage.getItem('sb_key') || DEFAULT_KEY;
+      const token = currentAuthToken || key;
+
+      if (!url || !key) throw new Error('Supabase URL and API Key are required.');
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'apikey': key,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'return=representation',
+        ...(options.headers || {})
+      };
+
+      const resp = await fetch(`${url}${endpoint}`, { ...options, headers });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        const msg = err.message || err.error_description || `HTTP ${resp.status}`;
+
+        if ((resp.status === 401 || resp.status === 403 || msg.includes('row-level security')) && !options._retried) {
+          currentAuthToken = '';
+          localStorage.removeItem('sb_token');
+          const reloginOk = await doSupabaseLoginSilently();
+          if (reloginOk) {
+            return supabaseFetch(endpoint, { ...options, _retried: true });
+          }
+          openConfigModal();
+          showCfgStatus('🔐 Row Level Security Active. Please enter Email & Password.', false);
+        }
+        throw new Error(msg);
+      }
+      if (resp.status === 204) return null;
+      return resp.json();
+    }
+
+    async function doSupabaseLoginSilently() {
+      const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+      const key = localStorage.getItem('sb_key') || DEFAULT_KEY;
+      const email = localStorage.getItem('sb_email');
+      const password = localStorage.getItem('sb_pwd');
+      if (!email || !password) return false;
+
+      try {
+        const resp = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': key },
+          body: JSON.stringify({ email, password })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          currentAuthToken = data.access_token;
+          localStorage.setItem('sb_token', currentAuthToken);
+          setConnStatus(true, `Logged in as ${email}`);
+          return true;
+        }
+      } catch (e) {}
+      setConnStatus(true, 'Connected (Anon)');
+      return false;
+    }
+
+    function setConnStatus(ok, text) {
+      const dot = document.getElementById('dot');
+      const connText = document.getElementById('connText');
+      if (ok) {
+        dot.className = 'w-2 h-2 mr-1 rounded-full bg-green-400';
+        connText.textContent = text || 'Connected';
+      } else {
+        dot.className = 'w-2 h-2 mr-1 rounded-full bg-red-400';
+        connText.textContent = text || 'Disconnected';
+      }
+    }
+
+    // Load Slots & Blocks from Supabase Cloud
+    async function loadSlots(forceRefresh = false) {
+      if (!forceRefresh && cache[selectedDate]) {
+        renderSlots(cache[selectedDate]);
+        return;
+      }
+
+      document.getElementById('loadingRow').style.display = 'block';
+      document.getElementById('loadingRow').innerHTML = '<span class="spinner">⏳</span> Reading Supabase Cloud…';
+
+      try {
+        const dmy = isoToDMY(selectedDate);
+        const endpoint = `/rest/v1/payments?or=(appointment_date.eq.${selectedDate},appointment_date.eq.${dmy})&order=id.asc`;
+        
+        const data = await supabaseFetch(endpoint);
+        setConnStatus(true, currentAuthToken ? 'Connected (Auth)' : 'Connected (Cloud)');
+
+        const parsed = {};
+        const blocks = [];
+
+        for (const r of (data || [])) {
+          const isBlocked = r.is_advance_booking === 2 || String(r.patient_name || '').startsWith('🚫');
+          if (isBlocked) {
+            let startMins = 0, endMins = 1440, reason = r.scan_description || '';
+            const metaStr = r.gcal_event_id || r.notes || '';
+            try {
+              if (metaStr && metaStr.startsWith('{')) {
+                const meta = JSON.parse(metaStr);
+                startMins = meta.startMins || 0;
+                endMins = meta.endMins || 1440;
+                reason = meta.reason || reason;
+              } else if (r.appointment_time && r.appointment_time.includes('-')) {
+                const parts = r.appointment_time.split('-');
+                if (parts.length === 2) {
+                  startMins = slotToMins(parts[0].trim());
+                  endMins = slotToMins(parts[1].trim());
+                }
+              }
+            } catch(e) {}
+            blocks.push({ id: r.id, startMins, endMins, reason });
+            continue;
+          }
+
+          const slotStr = r.appointment_time || '';
+          if (!slotStr) continue;
+
+          parsed[slotStr] = {
+            id: r.id,
+            patient: r.patient_name || '',
+            scan: r.scan_description || 'Scan',
+            doctor: r.referring_doctor || '',
+            phone: r.patient_phone || '',
+            advance: parseFloat(r.advance_amount || r.collected_today || 0),
+            mode: r.advance_mode || r.collected_mode || '',
+            time: slotStr,
+            raw: r
+          };
+        }
+
+        cache[selectedDate] = parsed;
+        blockCache[selectedDate] = blocks;
+        renderSlots(parsed);
+      } catch (e) {
+        setConnStatus(false, 'Error');
+        toast('Failed to load: ' + e.message, 'red');
+        renderSlots(cache[selectedDate] || {});
+      }
+    }
+
+    // Render Slots Grid
+    function renderSlots(events) {
+      const wrap = document.getElementById('slotsWrap');
+      document.getElementById('loadingRow').style.display = 'none';
+
+      const nowIST   = nowInIST();
+      const isToday_ = (selectedDate === isoToday());
+      const blocks   = blockCache[selectedDate] || [];
+      const fragments = [];
+
+      // Update Block Banner
+      const banner = document.getElementById('blockBanner');
+      if (blocks.length > 0) {
+        const b = blocks[0];
+        const startFmt = minsToTimeStr(b.startMins);
+        const endFmt   = minsToTimeStr(b.endMins);
+        document.getElementById('blockBannerTitle').textContent = `⚠ Blocked ${startFmt} – ${endFmt}`;
+        document.getElementById('blockBannerSub').textContent = b.reason ? b.reason : 'Clinic unavailable';
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+
+      // Render Slots
+      for (const slot of SLOTS) {
+        const ev       = events[slot];
+        const isPast   = isToday_ && slotPast(slot, nowIST);
+        const slotMins = slotToMins(slot);
+        const blockHit = blocks.find(b => slotMins >= b.startMins && slotMins < b.endMins);
+
+        if (blockHit) {
+          const reason = blockHit.reason || 'Clinic unavailable';
+          fragments.push(`
+            <div class="slot-card bg-orange-400 rounded-2xl p-4 fade-in opacity-90 shadow-sm">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-white font-bold text-sm">${slot}</span>
+                <span class="bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">Blocked</span>
+              </div>
+              <div class="text-white font-semibold text-base leading-tight">🚫 Unavailable</div>
+              <div class="text-orange-100 text-sm mt-0.5">${esc(reason)}</div>
+            </div>`);
+        } else if (ev) {
+          fragments.push(`
+            <div class="slot-card bg-red-500 rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openView('${slot}')">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-white font-bold text-sm">${slot}</span>
+                <span class="bg-red-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">Booked</span>
+              </div>
+              <div class="text-white font-semibold text-base leading-tight">${esc(ev.patient)}</div>
+              <div class="text-red-100 text-sm mt-0.5">${esc(ev.scan)}</div>
+              ${ev.doctor ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
+              ${ev.phone  ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
+              ${ev.advance > 0 ? `<div class="text-red-100 text-xs font-semibold mt-0.5">💰 ₹${ev.advance.toLocaleString('en-IN')} ${esc(ev.mode)}</div>` : ''}
+            </div>`);
+        } else if (isPast) {
+          fragments.push(`
+            <div class="slot-card bg-gray-200 rounded-2xl p-4 fade-in">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500 font-bold text-sm">${slot}</span>
+                <span class="text-gray-400 text-xs font-semibold">Past</span>
+              </div>
+              <div class="text-gray-400 text-sm mt-0.5">— —</div>
+            </div>`);
+        } else {
+          fragments.push(`
+            <div class="slot-card bg-[#0E6655] rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openNew('${slot}')">
+              <div class="flex justify-between items-center">
+                <span class="text-white font-bold text-sm">${slot}</span>
+                <span class="bg-teal-800 text-teal-100 text-xs px-2 py-0.5 rounded-full font-bold">Available</span>
+              </div>
+              <div class="text-teal-100 text-sm mt-0.5">Tap to book</div>
+            </div>`);
+        }
+      }
+
+      wrap.innerHTML = fragments.join('');
+    }
+
+    async function fetchNextPaymentId() {
+      try {
+        const rows = await supabaseFetch('/rest/v1/payments?select=id&order=id.desc&limit=1');
+        if (Array.isArray(rows) && rows.length > 0 && typeof rows[0].id === 'number') {
+          return rows[0].id + 1;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch max ID, relying on DB sequence:', e);
+      }
+      return null;
+    }
+
+    // Save Appointment to Supabase Cloud
+    async function saveAppt() {
+      const patient  = document.getElementById('f_patient').value.trim();
+      const scan     = document.getElementById('f_scan').value.trim();
+      const doctor   = document.getElementById('f_doctor').value.trim();
+      const phone    = document.getElementById('f_phone').value.trim();
+      const advance  = parseFloat(document.getElementById('f_advance').value) || 0;
+      const advMode  = document.getElementById('f_adv_mode').value.trim();
+      const dateISO  = document.getElementById('f_date').value;
+      const timeStr  = document.getElementById('f_time').value;
+
+      if (!patient) { showEditStatus('Patient name is required', 'red'); return; }
+      if (!scan)    { showEditStatus('Scan description is required', 'red'); return; }
+      if (!timeStr) { showEditStatus('Please select a time slot', 'red'); return; }
+      if (!dateISO) { showEditStatus('Please select a date', 'red'); return; }
+      if (advance > 0 && !advMode) {
+        showEditStatus('Please select Payment Mode for the advance', 'red'); return;
+      }
+
+      const btn = document.getElementById('saveBtn');
+      btn.textContent = '⏳ Saving to Supabase…';
+      btn.disabled    = true;
+
+      try {
+        const payload = {
+          patient_name: patient,
+          scan_description: scan,
+          referring_doctor: doctor,
+          patient_phone: phone,
+          advance_amount: advance,
+          advance_mode: advMode,
+          collected_mode: advMode,
+          collected_today: advance,
+          collected_date: isoToDMY(isoToday()),
+          appointment_date: isoToDMY(dateISO),
+          appointment_time: timeStr,
+          is_advance_booking: 1,
+          updated_at: new Date().toISOString()
+        };
+
+        if (editingId) {
+          await supabaseFetch(`/rest/v1/payments?id=eq.${editingId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload)
+          });
+        } else {
+          payload.created_at = new Date().toISOString();
+          const nextId = await fetchNextPaymentId();
+          if (nextId) payload.id = nextId;
+          await supabaseFetch(`/rest/v1/payments`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+        }
+
+        delete cache[dateISO];
+        closeModal();
+        toast(editingId ? '✅ Appointment updated in Cloud' : '✅ Appointment saved to Cloud', 'green');
+        if (dateISO === selectedDate) await loadSlots(true);
+
+        if (phone) {
+          setTimeout(() => {
+            if (confirm(`📱 Send WhatsApp notification to ${phone}?`)) {
+              sendWhatsAppMsg(patient, scan, dateISO, timeStr, advance, advMode, phone);
+            }
+          }, 600);
+        }
+      } catch (e) {
+        showEditStatus('Error: ' + e.message, 'red');
+      } finally {
+        btn.textContent = '💾 Save Appointment';
+        btn.disabled    = false;
+      }
+    }
+
+    // Delete Appointment from Supabase Cloud
+    async function deleteAppt() {
+      if (!editingId) return;
+      if (!confirm('Delete this appointment from Supabase Cloud?')) return;
+      try {
+        await supabaseFetch(`/rest/v1/payments?id=eq.${editingId}`, { method: 'DELETE' });
+        delete cache[selectedDate];
+        closeModal();
+        toast('✅ Appointment deleted from Cloud', 'green');
+        await loadSlots(true);
+      } catch (e) {
+        toast('Delete failed: ' + e.message, 'red');
+      }
+    }
+
+    // Block Time Slot in Supabase Cloud
+    async function saveBlock() {
+      const dateISO  = document.getElementById('b_date').value;
+      const startStr = document.getElementById('b_start').value;
+      const endStr   = document.getElementById('b_end').value;
+      const reason   = document.getElementById('b_reason').value.trim();
+
+      if (!dateISO)  { showBlockStatus('Please select a date', 'red');  return; }
+      if (!startStr) { showBlockStatus('Please select a start time', 'red'); return; }
+      if (!endStr)   { showBlockStatus('Please select an end time', 'red');  return; }
+
+      if (slotToMins(startStr) >= slotToMins(endStr)) {
+        showBlockStatus('End time must be after start time', 'red'); return;
+      }
+
+      const btn = document.getElementById('blockSaveBtn');
+      btn.textContent = '⏳ Saving Block…';
+      btn.disabled    = true;
+
+      try {
+        const startMins = slotToMins(startStr);
+        const endMins   = slotToMins(endStr);
+        const payload = {
+          patient_name: '🚫 BLOCKED',
+          scan_description: reason || 'Clinic Unavailable',
+          appointment_date: isoToDMY(dateISO),
+          appointment_time: `${startStr} - ${endStr}`,
+          is_advance_booking: 2,
+          gcal_event_id: JSON.stringify({ startMins, endMins, reason }),
+          updated_at: new Date().toISOString()
+        };
+
+        const nextId = await fetchNextPaymentId();
+        if (nextId) payload.id = nextId;
+
+        await supabaseFetch(`/rest/v1/payments`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+
+        delete cache[dateISO];
+        delete blockCache[dateISO];
+        closeBlockSheet();
+        toast('🚫 Time blocked in Cloud', 'green');
+        if (dateISO === selectedDate) await loadSlots(true);
+      } catch (e) {
+        showBlockStatus('Error: ' + e.message, 'red');
+      } finally {
+        btn.textContent = '🚫 Confirm Block';
+        btn.disabled    = false;
+      }
+    }
+
+    async function removeBlock() {
+      const blocks = blockCache[selectedDate] || [];
+      if (blocks.length === 0) return;
+      if (!confirm('Remove this block and make slots available again?')) return;
+
+      try {
+        for (const b of blocks) {
+          await supabaseFetch(`/rest/v1/payments?id=eq.${b.id}`, { method: 'DELETE' });
+        }
+        delete cache[selectedDate];
+        delete blockCache[selectedDate];
+        toast('✅ Block removed', 'green');
+        await loadSlots(true);
+      } catch (e) {
+        toast('Remove failed: ' + e.message, 'red');
+      }
+    }
+
+    // Config Settings
+    function openConfigModal() {
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('configModal').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('configModal').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    async function saveConfig() {
+      const url = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
+      const key = document.getElementById('cfgKey').value.trim();
+      const email = document.getElementById('cfgEmail').value.trim();
+      const pwd = document.getElementById('cfgPassword').value.trim();
+
+      if (!url || !key) {
+        showCfgStatus('URL and Anon Key are required', false);
+        return;
+      }
+
+      localStorage.setItem('sb_url', url);
+      localStorage.setItem('sb_key', key);
+      if (email) localStorage.setItem('sb_email', email);
+      if (pwd) localStorage.setItem('sb_pwd', pwd);
+
+      if (email && pwd) {
+        showCfgStatus('Authenticating user...', true);
+        const ok = await doSupabaseLoginSilently();
+        if (!ok) {
+          showCfgStatus('Login failed, using Anon Key', false);
+        }
+      }
+
+      closeConfigModal();
+      toast('Settings saved', 'green');
+      delete cache[selectedDate];
+      loadSlots(true);
+    }
+
+    function showCfgStatus(msg, isOk) {
+      const el = document.getElementById('cfgStatus');
+      el.textContent = msg;
+      el.className = isOk ? 'text-xs font-bold text-center text-green-600 py-1' : 'text-xs font-bold text-center text-red-600 py-1';
+      el.classList.remove('hidden');
+    }
+
+    // Open Modals
+    function openNew(slot) {
+      editingId   = null;
+      currentSlot = slot;
+
+      document.getElementById('sheetTitle').textContent    = '➕ New Appointment';
+      document.getElementById('sheetSubtitle').textContent = slot + ' · ' + friendlyDate(selectedDate);
+
+      document.getElementById('f_patient').value  = '';
+      document.getElementById('f_scan').value     = '';
+      document.getElementById('f_doctor').value   = '';
+      document.getElementById('f_phone').value    = '';
+      document.getElementById('f_advance').value  = '';
+      document.getElementById('f_adv_mode').value = '';
+      document.getElementById('f_date').value     = selectedDate;
+      document.getElementById('f_time').value     = slot;
+
+      document.getElementById('viewMode').classList.add('hidden');
+      document.getElementById('editMode').classList.remove('hidden');
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      document.getElementById('editStatus').classList.add('hidden');
+
+      showSheet();
+    }
+
+    function openView(slot) {
+      const ev = (cache[selectedDate] || {})[slot];
+      if (!ev) return;
+      editingId   = ev.id;
+      currentSlot = slot;
+
+      document.getElementById('sheetTitle').textContent    = '📋 Appointment';
+      document.getElementById('sheetSubtitle').textContent = slot + ' · ' + friendlyDate(selectedDate);
+
+      document.getElementById('v_patient').textContent = ev.patient || '—';
+      document.getElementById('v_scan').textContent    = ev.scan    || '—';
+
+      const drRow = document.getElementById('v_doctor_row');
+      const phRow = document.getElementById('v_phone_row');
+      if (ev.doctor) {
+        document.getElementById('v_doctor').textContent = ev.doctor;
+        drRow.classList.remove('hidden');
+      } else {
+        drRow.classList.add('hidden');
+      }
+      if (ev.phone) {
+        document.getElementById('v_phone').textContent = ev.phone;
+        phRow.classList.remove('hidden');
+      } else {
+        phRow.classList.add('hidden');
+      }
+
+      const waBtn = document.getElementById('waViewBtn');
+      if (ev.phone) {
+        waBtn.classList.remove('hidden');
+      } else {
+        waBtn.classList.add('hidden');
+      }
+
+      const advRow = document.getElementById('v_advance_row');
+      if (ev.advance > 0) {
+        document.getElementById('v_advance').textContent = `₹${ev.advance.toLocaleString('en-IN')} (${ev.mode || '—'})`;
+        advRow.classList.remove('hidden');
+      } else {
+        advRow.classList.add('hidden');
+      }
+
+      document.getElementById('viewMode').classList.remove('hidden');
+      document.getElementById('editMode').classList.add('hidden');
+
+      showSheet();
+    }
+
+    function switchToEdit() {
+      const ev = (cache[selectedDate] || {})[currentSlot];
+      if (!ev) return;
+
+      document.getElementById('sheetTitle').textContent = '✏ Edit Appointment';
+
+      document.getElementById('f_patient').value  = ev.patient || '';
+      document.getElementById('f_scan').value     = ev.scan    || '';
+      document.getElementById('f_doctor').value   = ev.doctor  || '';
+      document.getElementById('f_phone').value    = ev.phone   || '';
+      document.getElementById('f_advance').value  = ev.advance > 0 ? ev.advance : '';
+      document.getElementById('f_adv_mode').value = ev.mode    || '';
+      document.getElementById('f_date').value     = selectedDate;
+      document.getElementById('f_time').value     = ev.time    || currentSlot;
+
+      document.getElementById('editStatus').classList.add('hidden');
+      document.getElementById('viewMode').classList.add('hidden');
+      document.getElementById('editMode').classList.remove('hidden');
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+    }
+
+    function showSheet() {
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('sheet').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeModal() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('sheet').classList.replace('translate-y-0', 'translate-y-full');
+      document.getElementById('blockSheet').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    // Helper utilities
+    function navigate(delta) {
+      const d = new Date(selectedDate + 'T12:00:00');
+      d.setDate(d.getDate() + delta);
+      selectedDate = d.toISOString().slice(0, 10);
+      renderDateNav();
+      loadSlots();
+    }
+
+    function goToday() {
+      selectedDate = isoToday();
+      renderDateNav();
+      loadSlots();
+    }
+
+    function doRefresh() {
+      delete cache[selectedDate];
+      delete blockCache[selectedDate];
+      loadSlots(true);
+    }
+
+    function renderDateNav() {
+      const d      = new Date(selectedDate + 'T12:00:00');
+      const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const months = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+      document.getElementById('dateDisplay').textContent = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      const isToday_ = selectedDate === isoToday();
+      document.getElementById('dayDisplay').textContent = days[d.getDay()] + (isToday_ ? ' · Today' : '');
+    }
+
+    function fillTimeSelect() {
+      const sel = document.getElementById('f_time');
+      SLOTS.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        sel.appendChild(o);
+      });
+    }
+
+    function fillBlockTimeSelects() {
+      const BLOCK_TIMES = [
+        '6:00 AM','6:30 AM','7:00 AM','7:30 AM',
+        '8:00 AM','8:30 AM','9:00 AM','9:30 AM','10:00 AM','10:30 AM',
+        '11:00 AM','11:30 AM','12:00 PM','12:30 PM',
+        '1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM',
+        '4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM',
+        '7:00 PM','7:30 PM','8:00 PM','8:30 PM','9:00 PM',
+      ];
+      ['b_start','b_end'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel.options.length > 1) return;
+        BLOCK_TIMES.forEach(t => {
+          const o = document.createElement('option');
+          o.value = t; o.textContent = t;
+          sel.appendChild(o);
+        });
+      });
+    }
+
+    function openBlockSheet() {
+      fillBlockTimeSelects();
+      document.getElementById('b_date').value   = selectedDate;
+      document.getElementById('b_reason').value = '';
+      document.getElementById('blockStatus').classList.add('hidden');
+      setBlockPreset('fullday');
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('blockSheet').classList.replace('translate-y-full','translate-y-0');
+    }
+
+    function closeBlockSheet() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('blockSheet').classList.replace('translate-y-0','translate-y-full');
+    }
+
+    function setBlockPreset(type) {
+      ['presetMorning','presetAfternoon','presetFullDay'].forEach(id => {
+        document.getElementById(id).className =
+          'flex-1 border-2 border-gray-200 text-gray-500 text-xs font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors';
+      });
+      const activeClass =
+        'flex-1 border-2 border-orange-400 bg-orange-50 text-orange-700 text-xs font-bold py-2.5 rounded-xl transition-colors';
+
+      if (type === 'morning') {
+        document.getElementById('presetMorning').className = activeClass;
+        document.getElementById('b_start').value = '8:00 AM';
+        document.getElementById('b_end').value   = '1:00 PM';
+      } else if (type === 'afternoon') {
+        document.getElementById('presetAfternoon').className = activeClass;
+        document.getElementById('b_start').value = '1:00 PM';
+        document.getElementById('b_end').value   = '8:00 PM';
+      } else {
+        document.getElementById('presetFullDay').className = activeClass;
+        document.getElementById('b_start').value = '8:00 AM';
+        document.getElementById('b_end').value   = '8:00 PM';
+      }
+      updateBlockConfirm();
+    }
+
+    function updateBlockConfirm() {
+      const dateVal  = document.getElementById('b_date').value;
+      const startVal = document.getElementById('b_start').value;
+      const endVal   = document.getElementById('b_end').value;
+      const line     = document.getElementById('blockConfirmLine');
+
+      if (!dateVal || !startVal || !endVal) { line.classList.add('hidden'); return; }
+
+      const d      = new Date(dateVal + 'T12:00:00');
+      const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const label  = `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+
+      line.textContent = `⚠ Block ${label} · ${startVal} – ${endVal}`;
+      line.classList.remove('hidden');
+    }
+
+    function showBlockStatus(msg, color) {
+      const el = document.getElementById('blockStatus');
+      el.textContent      = msg;
+      el.style.background = color === 'green' ? '#D1FAE5' : '#FEE2E2';
+      el.style.color      = color === 'green' ? '#065F46' : '#991B1B';
+      el.classList.remove('hidden');
+    }
+
+    // Offsets
+    function getDefaultOffset() {
+      const v = parseInt(localStorage.getItem('bs_offset_minutes'), 10);
+      return Number.isFinite(v) ? v : 30;
+    }
+
+    function getSlotOffsets() {
+      try {
+        const raw = localStorage.getItem('bs_offsets_json');
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+
+    function getOffsetForSlot(slot) {
+      const map = getSlotOffsets();
+      if (slot && Object.prototype.hasOwnProperty.call(map, slot)) {
+        const v = parseInt(map[slot], 10);
+        if (Number.isFinite(v)) return v;
+      }
+      return getDefaultOffset();
+    }
+
+    function openOffsetSheet() {
+      renderOffsetRows();
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('offsetSheet').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeOffsetSheet() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('offsetSheet').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    function renderOffsetRows() {
+      const wrap    = document.getElementById('offsetRows');
+      const slotMap = getSlotOffsets();
+      const defVal  = getDefaultOffset();
+      document.getElementById('offsetDefault').value = defVal;
+
+      wrap.innerHTML = SLOTS.map(slot => {
+        const has = Object.prototype.hasOwnProperty.call(slotMap, slot);
+        const val = has ? slotMap[slot] : defVal;
+        return `
+          <div class="flex items-center justify-between py-2">
+            <span class="text-sm text-gray-700 font-medium">${slot}</span>
+            <div class="flex items-center gap-1">
+              <input type="number" min="0" max="180" data-slot="${slot}" value="${val}"
+                     class="offset-slot-input w-16 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <span class="text-xs text-gray-500">min</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function saveOffsets() {
+      const defVal = parseInt(document.getElementById('offsetDefault').value, 10);
+      if (!Number.isFinite(defVal) || defVal < 0 || defVal > 180) {
+        toast('Default offset must be 0–180', 'red');
+        return;
+      }
+      const map = {};
+      let bad = false;
+      document.querySelectorAll('.offset-slot-input').forEach(inp => {
+        const v = parseInt(inp.value, 10);
+        if (!Number.isFinite(v) || v < 0 || v > 180) { bad = true; return; }
+        map[inp.dataset.slot] = v;
+      });
+      if (bad) {
+        toast('Each slot must be 0–180 minutes', 'red');
+        return;
+      }
+      localStorage.setItem('bs_offset_minutes', String(defVal));
+      localStorage.setItem('bs_offsets_json', JSON.stringify(map));
+      closeOffsetSheet();
+      toast('Appointment offsets saved', 'green');
+    }
+
+    function patientArrivalTime(timeStr) {
+      if (!timeStr) return timeStr;
+      const parts = timeStr.split(' ');
+      if (parts.length < 2) return timeStr;
+      const [tp, ampm] = parts;
+      let [h, m] = tp.split(':').map(Number);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      const shift = getOffsetForSlot(timeStr);
+      if (shift <= 0) return timeStr;
+      let total = ((h * 60 + m - shift) % 1440 + 1440) % 1440;
+      const rh  = Math.floor(total / 60);
+      const rm  = total % 60;
+      const rap = rh >= 12 ? 'PM' : 'AM';
+      let rh12  = rh % 12;
+      if (rh12 === 0) rh12 = 12;
+      return `${rh12}:${pad(rm)} ${rap}`;
+    }
+
+    // WhatsApp Message
+    function sendWhatsAppView() {
+      const ev = (cache[selectedDate] || {})[currentSlot];
+      if (!ev || !ev.phone) return;
+      sendWhatsAppMsg(ev.patient, ev.scan, selectedDate, ev.time, ev.advance || 0, ev.mode || '', ev.phone);
+    }
+
+    function sendWhatsAppMsg(patient, scan, dateISO, timeStr, advance, mode, phone) {
+      let ph = (phone || '').replace(/\D/g, '');
+      if (ph.startsWith('0')) ph = '91' + ph.slice(1);
+      if (ph.length === 10)   ph = '91' + ph;
+      if (!ph) { alert('No valid phone number for WhatsApp.'); return; }
+
+      const arrive = patientArrivalTime(timeStr);
+      const dmy = isoToDMY(dateISO);
+
+      let msg  = `🏥 *Baby Scan Fetal Medicine and Gynec Imaging*\n`;
+          msg += `Rameshwar Complex, Dairy Road, Radhanpur Circle, Mehsana\n`;
+          msg += `📞 9537222217\n\n`;
+          msg += `👤 Patient: *${patient}*\n`;
+          msg += `📅 Date: ${dmy}\n`;
+          msg += `👶 Scan: ${scan}\n`;
+          msg += `📅 Appointment: *${dmy} | ${arrive}*\n`;
+      if (advance > 0) {
+        const fmtAdv = advance.toLocaleString('en-IN');
+          msg += `\n💰 Amount Paid: *₹${fmtAdv}*\n`;
+          msg += `💳 Payment Mode: ${mode}\n`;
+      }
+          msg += `\n`;
+          msg += `According to Baby's Position sonography may take 3 to 4 hours.\n`;
+          msg += `Fasting is not mandatory for sonography.\n`;
+          msg += `It is mandatory to bring all old records and reports.\n\n`;
+          msg += `સોનોગ્રાફીમાં બાળકની પોઝિશન પ્રમાણે 3 થી 4 કલાકનો ટાઈમ લાગી શકે છે.\n`;
+          msg += `સોનોગ્રાફી માટે ભૂખ્યા પેટે આવવાની જરૂર નથી.\n`;
+          msg += `આગળના બધા જ રિપોર્ટ સાથે લાવવા જરૂરી છે.\n\n`;
+          msg += `Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
+
+      window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+    // Time/Date Helpers
+    function str(s) { return String(s || ''); }
+    function isoToday() {
+      const now = new Date();
+      const ist = new Date(now.getTime() + 5.5 * 3600000);
+      return ist.toISOString().slice(0, 10);
+    }
+    function isoToDMY(iso) {
+      if (!iso) return '';
+      const p = iso.split('-');
+      if (p.length === 3) return `${p[2]}-${p[1]}-${p[0]}`;
+      return iso;
+    }
+    function nowInIST() {
+      const now = new Date();
+      return new Date(now.getTime() + 5.5 * 3600000);
+    }
+    function slotToMins(timeStr) {
+      if (!timeStr) return 0;
+      const [tp, ampm] = timeStr.split(' ');
+      let [h, m] = tp.split(':').map(Number);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return h * 60 + m;
+    }
+    function minsToTimeStr(mins) {
+      let h = Math.floor(mins / 60);
+      const m  = mins % 60;
+      const ap = h >= 12 ? 'PM' : 'AM';
+      if (h > 12) h -= 12;
+      if (h === 0) h = 12;
+      return `${h}:${pad(m)} ${ap}`;
+    }
+    function slotPast(timeStr, nowIST) {
+      const slotMins = slotToMins(timeStr);
+      const nowMins  = nowIST.getUTCHours() * 60 + nowIST.getUTCMinutes();
+      return slotMins < nowMins;
+    }
+    function friendlyDate(isoDate) {
+      const d = new Date(isoDate + 'T12:00:00');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${d.getDate()} ${months[d.getMonth()]}`;
+    }
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function esc(s) {
+      return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function toast(msg, color) {
+      const wrap  = document.getElementById('toast');
+      const inner = document.getElementById('toastInner');
+      inner.textContent = msg;
+      inner.style.background = color === 'green' ? '#D1FAE5' : '#FEE2E2';
+      inner.style.color      = color === 'green' ? '#065F46' : '#991B1B';
+      wrap.classList.remove('hidden');
+      setTimeout(() => wrap.classList.add('hidden'), 3000);
+    }
+    function showEditStatus(msg, color) {
+      const el = document.getElementById('editStatus');
+      el.textContent      = msg;
+      el.style.background = color === 'green' ? '#D1FAE5' : '#FEE2E2';
+      el.style.color      = color === 'green' ? '#065F46' : '#991B1B';
+      el.classList.remove('hidden');
+    }
+    function closeAnySheet() {
+      closeModal();
+      closeBlockSheet();
+      closeOffsetSheet();
+      closeConfigModal();
+    }
+
+    // Touch Swipe Gestures
+    (function () {
+      const SWIPE_H_MIN = 60, SWIPE_V_MIN = 80, SWIPE_V_LOCK = 40, RATIO_H = 1.5;
+      let tx = 0, ty = 0, active = false;
+
+      function sheetOpen() {
+        const s = document.getElementById('sheet');
+        return s && !s.classList.contains('translate-y-full');
+      }
+
+      document.addEventListener('touchstart', (e) => {
+        if (sheetOpen()) return;
+        tx = e.touches[0].clientX; ty = e.touches[0].clientY; active = true;
+      }, { passive: true });
+
+      document.addEventListener('touchend', (e) => {
+        if (!active || sheetOpen()) { active = false; return; }
+        active = false;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - tx, dy = t.clientY - ty;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+
+        if (dy >= SWIPE_V_MIN && adx < SWIPE_V_LOCK) { doRefresh(); return; }
+        if (adx >= SWIPE_H_MIN && adx >= ady * RATIO_H) {
+          if (dx < 0) navigate(1); else navigate(-1);
+        }
+      }, { passive: true });
+    })();
+  </script>
+</body>
+</html>
