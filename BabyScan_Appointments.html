@@ -237,7 +237,7 @@
 
   <!-- ── Send QR Bottom Sheet ─────────────────────────────────────────────── -->
   <div id="sendQrSheet"
-       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+       class="modal-sheet fixed inset-x-0 bottom-0 z-[60] bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
     <div class="bg-purple-700 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
       <div>
         <div class="font-bold text-lg">💳 Send UPI QR</div>
@@ -1688,7 +1688,9 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       document.getElementById('sendQrMsg').value = msg;
       document.getElementById('sendQrStatus').classList.add('hidden');
 
-      document.getElementById('backdrop').classList.remove('hidden');
+      closeModal(); // Hide the appointment detail modal
+      
+      document.getElementById('backdrop').classList.remove('hidden'); // ensure backdrop stays
       document.getElementById('sendQrSheet').classList.replace('translate-y-full', 'translate-y-0');
     }
 
