@@ -52,6 +52,11 @@
                 title="Configure Arrival Offsets">
           ⏱ Offsets
         </button>
+        <button onclick="openQrSettings()"
+                class="text-xs font-bold px-2.5 py-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
+                title="UPI QR Code Settings">
+          💳 UPI QR
+        </button>
         <button onclick="openConfigModal()"
                 class="p-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
                 title="Cloud Database Settings">
@@ -162,6 +167,85 @@
           Cancel
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── UPI QR Settings Modal ────────────────────────────────────────────── -->
+  <div id="qrSettingsModal"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-purple-700 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div class="font-bold text-lg">💳 UPI QR Settings</div>
+        <div class="text-purple-200 text-xs mt-0.5">Upload QR code & set payment message</div>
+      </div>
+      <button onclick="closeQrSettings()" class="w-8 h-8 bg-purple-900 rounded-full font-bold active:bg-purple-950">✕</button>
+    </div>
+    <div class="px-5 pt-4 pb-6 space-y-4 overflow-y-auto" style="max-height:75vh;">
+      <!-- QR Upload -->
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-2 uppercase tracking-wide">UPI QR Code Image</label>
+        <div id="qrPreviewArea" class="border-2 border-dashed border-gray-300 rounded-2xl p-4 flex flex-col items-center justify-center bg-gray-50 min-h-[160px]">
+          <img id="qrPreviewImg" src="" class="hidden max-w-[180px] max-h-[180px] rounded-xl shadow-md mb-3">
+          <div id="qrPlaceholder" class="text-center text-gray-400">
+            <div class="text-3xl mb-1">📷</div>
+            <div class="text-xs font-semibold">Tap to upload QR code</div>
+          </div>
+        </div>
+        <input id="qrFileInput" type="file" accept="image/*" class="hidden" onchange="onQrFileSelected(event)">
+        <div class="flex gap-2 mt-3">
+          <button onclick="document.getElementById('qrFileInput').click()"
+                  class="flex-1 bg-purple-600 text-white py-2.5 rounded-xl font-bold text-sm active:bg-purple-700 shadow-md">
+            📤 Upload QR Image
+          </button>
+          <button onclick="removeQrImage()"
+                  class="bg-red-100 text-red-600 px-4 py-2.5 rounded-xl font-bold text-sm active:bg-red-200">
+            🗑
+          </button>
+        </div>
+      </div>
+      <!-- Message Template -->
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wide">Payment Message Template</label>
+        <div class="text-xs text-gray-400 mb-2">Variables: <code class="bg-gray-100 px-1 rounded">{patient_name}</code> <code class="bg-gray-100 px-1 rounded">{amount}</code> <code class="bg-gray-100 px-1 rounded">{scan}</code> <code class="bg-gray-100 px-1 rounded">{date}</code></div>
+        <textarea id="qrMsgTemplate" rows="4"
+                  class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Dear {patient_name}, please scan this QR to pay..."></textarea>
+      </div>
+      <div id="qrSettingsStatus" class="text-xs font-bold text-center hidden py-1"></div>
+      <div class="flex gap-2 pt-1">
+        <button onclick="saveQrSettings()" class="flex-1 bg-purple-700 text-white py-3 rounded-xl font-bold text-sm active:bg-purple-800 shadow-md">
+          💾 Save Settings
+        </button>
+        <button onclick="closeQrSettings()" class="bg-gray-200 text-gray-700 px-4 py-3 rounded-xl font-bold text-sm active:bg-gray-300">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Send QR Bottom Sheet ─────────────────────────────────────────────── -->
+  <div id="sendQrSheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-purple-700 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div class="font-bold text-lg">💳 Send UPI QR</div>
+        <div id="sendQrSubtitle" class="text-purple-200 text-xs mt-0.5">via WhatsApp</div>
+      </div>
+      <button onclick="closeSendQrSheet()" class="w-8 h-8 bg-purple-900 rounded-full font-bold active:bg-purple-950">✕</button>
+    </div>
+    <div class="px-5 pt-4 pb-6 space-y-4 overflow-y-auto" style="max-height:75vh;">
+      <div class="flex justify-center">
+        <img id="sendQrPreview" src="" class="max-w-[180px] max-h-[180px] rounded-xl shadow-lg border">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wide">Message (editable)</label>
+        <textarea id="sendQrMsg" rows="4"
+                  class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+      </div>
+      <button onclick="doSendQr()" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold text-base active:bg-green-700 shadow-md">
+        📱 Send via WhatsApp
+      </button>
+      <div id="sendQrStatus" class="text-xs font-bold text-center hidden py-1"></div>
     </div>
   </div>
 
@@ -369,6 +453,9 @@
         </button>
         <button id="waViewBtn" onclick="sendWhatsAppView()" class="bg-green-600 text-white px-4 py-3 rounded-xl font-bold active:bg-green-700 hidden shadow-md">
           📱 WA
+        </button>
+        <button id="qrViewBtn" onclick="openSendQrSheet()" class="bg-purple-600 text-white px-4 py-3 rounded-xl font-bold active:bg-purple-700 hidden shadow-md">
+          💳 QR
         </button>
         <button onclick="deleteAppt()" class="bg-red-500 text-white px-5 py-3 rounded-xl font-bold active:bg-red-600 shadow-md">
           🗑
@@ -1050,6 +1137,14 @@
         waBtn.classList.add('hidden');
       }
 
+      const qrBtn = document.getElementById('qrViewBtn');
+      const hasQr = !!localStorage.getItem('upi_qr_base64');
+      if (ev.phone && hasQr) {
+        qrBtn.classList.remove('hidden');
+      } else {
+        qrBtn.classList.add('hidden');
+      }
+
       const advRow = document.getElementById('v_advance_row');
       if (ev.advance > 0) {
         document.getElementById('v_advance').textContent = `₹${ev.advance.toLocaleString('en-IN')} (${ev.mode || '—'})`;
@@ -1460,6 +1555,191 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       el.classList.remove('hidden');
     }
 
+    // ── UPI QR Settings UI ────────────────────────────────────────────────
+    const DEFAULT_QR_TEMPLATE = "Dear {patient_name}, please scan this QR code to pay for your scan ({scan}) on {date}.";
+
+    function openQrSettings() {
+      // Load saved QR if any
+      const qrBase64 = localStorage.getItem('upi_qr_base64');
+      const previewImg = document.getElementById('qrPreviewImg');
+      const placeholder = document.getElementById('qrPlaceholder');
+      if (qrBase64) {
+        previewImg.src = qrBase64;
+        previewImg.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+      } else {
+        previewImg.src = '';
+        previewImg.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+      }
+
+      // Load saved template
+      let msgTpl = localStorage.getItem('upi_qr_msg_template');
+      if (!msgTpl) msgTpl = DEFAULT_QR_TEMPLATE;
+      document.getElementById('qrMsgTemplate').value = msgTpl;
+
+      document.getElementById('qrSettingsStatus').classList.add('hidden');
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('qrSettingsModal').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeQrSettings() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('qrSettingsModal').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    function onQrFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const previewImg = document.getElementById('qrPreviewImg');
+        const placeholder = document.getElementById('qrPlaceholder');
+        previewImg.src = e.target.result;
+        previewImg.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeQrImage() {
+      const previewImg = document.getElementById('qrPreviewImg');
+      const placeholder = document.getElementById('qrPlaceholder');
+      previewImg.src = '';
+      previewImg.classList.add('hidden');
+      placeholder.classList.remove('hidden');
+      document.getElementById('qrFileInput').value = '';
+    }
+
+    function saveQrSettings() {
+      const previewImg = document.getElementById('qrPreviewImg');
+      if (previewImg.src && !previewImg.src.endsWith(window.location.host + '/') && previewImg.src !== window.location.href) {
+         localStorage.setItem('upi_qr_base64', previewImg.src);
+      } else {
+         localStorage.removeItem('upi_qr_base64');
+      }
+
+      const msg = document.getElementById('qrMsgTemplate').value.trim();
+      if (msg) {
+        localStorage.setItem('upi_qr_msg_template', msg);
+      } else {
+        localStorage.removeItem('upi_qr_msg_template');
+      }
+
+      const el = document.getElementById('qrSettingsStatus');
+      el.textContent = 'Settings saved ✔';
+      el.style.color = '#059669'; // text-emerald-600
+      el.classList.remove('hidden');
+      setTimeout(closeQrSettings, 700);
+      
+      // Refresh currently open view to update QR button visibility
+      if (currentSlot && !document.getElementById('viewMode').classList.contains('hidden')) {
+          openView(currentSlot);
+      }
+    }
+
+    // ── Send QR Logic ─────────────────────────────────────────────────────
+    function openSendQrSheet() {
+      const ev = (cache[selectedDate] || {})[currentSlot];
+      if (!ev) return;
+
+      const qrBase64 = localStorage.getItem('upi_qr_base64');
+      if (!qrBase64) {
+        alert("Please set up your UPI QR Code in Settings first.");
+        return;
+      }
+
+      document.getElementById('sendQrPreview').src = qrBase64;
+
+      let msgTpl = localStorage.getItem('upi_qr_msg_template');
+      if (!msgTpl) msgTpl = DEFAULT_QR_TEMPLATE;
+
+      const dateFmt = isoToDMY(selectedDate);
+      const arrive = patientArrivalTime(ev.time);
+      const vars = {
+        patient_name: ev.patient,
+        date: dateFmt,
+        scan: ev.scan,
+        appointment_date: dateFmt,
+        appointment_time: arrive,
+        amount: ev.advance || ''
+      };
+
+      let msg;
+      try {
+        msg = renderTemplate(msgTpl, vars);
+      } catch (e) {
+        msg = msgTpl;
+      }
+
+      document.getElementById('sendQrMsg').value = msg;
+      document.getElementById('sendQrStatus').classList.add('hidden');
+
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('sendQrSheet').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeSendQrSheet() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('sendQrSheet').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    function dataURLtoFile(dataurl, filename) {
+        let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+            bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+        while(n--){
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new File([u8arr], filename, {type:mime});
+    }
+
+    async function doSendQr() {
+      const ev = (cache[selectedDate] || {})[currentSlot];
+      if (!ev) return;
+
+      let ph = (ev.phone || '').replace(/\D/g, '');
+      if (ph.startsWith('0')) ph = '91' + ph.slice(1);
+      if (ph.length === 10)   ph = '91' + ph;
+      
+      const msg = document.getElementById('sendQrMsg').value;
+      const qrBase64 = document.getElementById('sendQrPreview').src;
+      
+      const statusEl = document.getElementById('sendQrStatus');
+
+      if (navigator.share && navigator.canShare) {
+        try {
+          const file = dataURLtoFile(qrBase64, 'qr_code.jpg');
+          if (navigator.canShare({ files: [file] })) {
+             await navigator.share({
+               title: 'Payment QR',
+               text: msg,
+               files: [file]
+             });
+             closeSendQrSheet();
+             return;
+          }
+        } catch (err) {
+           console.log("Share failed or cancelled", err);
+           if (err.name === 'AbortError') return; // User cancelled
+        }
+      }
+
+      // Fallback
+      if (!ph) {
+          alert('No valid phone number for WhatsApp.'); 
+          return; 
+      }
+      statusEl.textContent = 'Image share not supported. Sending text only.';
+      statusEl.style.color = '#B45309';
+      statusEl.classList.remove('hidden');
+      
+      setTimeout(() => {
+        window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
+        closeSendQrSheet();
+      }, 1500);
+    }
+
     // Time/Date Helpers
     function str(s) { return String(s || ''); }
     function isoToday() {
@@ -1529,6 +1809,8 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       closeOffsetSheet();
       closeConfigModal();
       closeTemplateSheet();
+      closeQrSettings();
+      closeSendQrSheet();
     }
 
     // Touch Swipe Gestures
