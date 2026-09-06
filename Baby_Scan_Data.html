@@ -491,6 +491,12 @@
       return dStr;
     }
 
+    function isUPIMode(m) {
+      if (!m) return false;
+      const s = String(m).toUpperCase();
+      return s.includes("UPI") || s.includes("ONLINE") || s.includes("GPAY") || s.includes("PHONEPE") || s.includes("PAYTM") || s.includes("BANK") || s.includes("CARD");
+    }
+
     function switchTab(tab) {
       activeTab = tab;
       const pBtn = document.getElementById('tabPatientsBtn');
@@ -599,7 +605,7 @@
       document.getElementById('cardsList').innerHTML = '';
       document.getElementById('emptyState').classList.add('hidden');
 
-      let endpoint = `${url}/rest/v1/patients?select=*&order=id.desc&limit=100`;
+      let endpoint = `${url}/rest/v1/patients?select=*&order=id.desc&limit=5000`;
       
       if (timeframeMode === 'daily') {
         const dateVal = document.getElementById('dateFilter').value;
@@ -680,7 +686,7 @@
       document.getElementById('cardsList').innerHTML = '';
       document.getElementById('emptyState').classList.add('hidden');
 
-      let endpoint = `${url}/rest/v1/payments?select=*&order=id.desc&limit=300`;
+      let endpoint = `${url}/rest/v1/payments?select=*&order=id.desc&limit=5000`;
 
       try {
         const resp = await fetch(endpoint, { headers: getHeaders() });
@@ -721,19 +727,19 @@
         const targetMMYYYY = `${month}-${year}`;
 
         return payments.filter(pm => {
-          return (pm.collected_date && pm.collected_date.endsWith(targetMMYYYY)) ||
-                 (pm.advance_date && pm.advance_date.endsWith(targetMMYYYY)) ||
-                 (pm.appointment_date && pm.appointment_date.endsWith(targetMMYYYY));
+          return pm.collected_date && pm.collected_date.endsWith(targetMMYYYY);
         });
       } else if (timeframeMode === 'custom') {
         const startISO = document.getElementById('startDateFilter').value;
         const endISO = document.getElementById('endDateFilter').value;
         if (!startISO || !endISO) return payments;
 
+        const startS = toSortableYYYYMMDD(startISO);
+        const endS = toSortableYYYYMMDD(endISO);
+
         return payments.filter(pm => {
-          const dStr = pm.collected_date || pm.advance_date || pm.appointment_date || "";
-          const sortableD = toSortableYYYYMMDD(dStr);
-          return sortableD >= startISO && sortableD <= endISO;
+          const colS = toSortableYYYYMMDD(pm.collected_date);
+          return colS && colS >= startS && colS <= endS;
         });
       }
       return payments;
@@ -772,8 +778,9 @@
 
         const advDate = p.advance_date || "";
         const colDate = p.collected_date || "";
-        const mode = (p.collected_mode || p.advance_mode || "Cash").toUpperCase();
-        const isUPI = mode.includes("UPI") || mode.includes("ONLINE") || mode.includes("GPAY");
+        const mode1 = p.collected_mode || "Cash";
+        const mode2 = p.collected_mode2 || "Cash";
+        const advMode = p.advance_mode || mode1;
 
         let cardClass = "bg-white border-gray-200";
         let rcvdTodayDisplay = 0;
@@ -793,22 +800,57 @@
             isYellowRow = true;
             cardClass = "bg-amber-50 border-amber-200";
             rcvdTodayDisplay = advAmt > 0 ? advAmt : rcvd;
-            if (isUPI) upiToday += rcvdTodayDisplay;
+            if (isUPIMode(advMode)) upiToday += rcvdTodayDisplay;
             else cashToday += rcvdTodayDisplay;
           }
           // STANDARD ROW: Payment collected today
           else {
-            rcvdTodayDisplay = rcvd + rcvd2;
-            if (advDate === targetDD) rcvdTodayDisplay += advAmt;
-
-            if (isUPI) upiToday += rcvdTodayDisplay;
-            else cashToday += rcvdTodayDisplay;
+            rcvdTodayDisplay = 0;
+            if (colDate === targetDD) {
+              rcvdTodayDisplay += rcvd + rcvd2;
+              if (isUPIMode(mode1)) upiToday += rcvd; else cashToday += rcvd;
+              if (isUPIMode(mode2)) upiToday += rcvd2; else cashToday += rcvd2;
+            }
+            if (advDate === targetDD) {
+              rcvdTodayDisplay += advAmt;
+              if (isUPIMode(advMode)) upiToday += advAmt; else cashToday += advAmt;
+            }
           }
         } else {
-          // Monthly or Custom Range
-          rcvdTodayDisplay = advAmt + rcvd + rcvd2;
-          if (isUPI) upiToday += rcvdTodayDisplay;
-          else cashToday += rcvdTodayDisplay;
+          // Monthly or Custom Range (EXACT MATCH WITH DESKTOP APP get_payments_by_range)
+          let colInRange = false;
+
+          if (timeframeMode === 'monthly') {
+            const mVal = document.getElementById('monthFilter').value;
+            if (mVal) {
+              const [year, month] = mVal.split('-');
+              const targetMMYYYY = `${month}-${year}`;
+              if (colDate && colDate.endsWith(targetMMYYYY)) colInRange = true;
+            } else {
+              colInRange = true;
+            }
+          } else if (timeframeMode === 'custom') {
+            const startISO = document.getElementById('startDateFilter').value;
+            const endISO = document.getElementById('endDateFilter').value;
+            if (startISO && endISO) {
+              const startS = toSortableYYYYMMDD(startISO);
+              const endS = toSortableYYYYMMDD(endISO);
+              const colS = toSortableYYYYMMDD(colDate);
+              if (colS && colS >= startS && colS <= endS) colInRange = true;
+            } else {
+              colInRange = true;
+            }
+          } else {
+            colInRange = true;
+          }
+
+          if (colInRange) {
+            rcvdTodayDisplay = rcvd + rcvd2;
+            if (isUPIMode(mode1)) upiToday += rcvd; else cashToday += rcvd;
+            if (isUPIMode(mode2)) upiToday += rcvd2; else cashToday += rcvd2;
+          } else {
+            rcvdTodayDisplay = rcvd + rcvd2;
+          }
         }
 
         totalDueBalance += (bal > 0 ? bal : 0);
@@ -821,6 +863,8 @@
         const name = p.patient_name || 'Patient';
         const scan = p.scan_description || 'Ultrasound Scan';
         const doctor = p.referring_doctor || 'Direct';
+        const mode = p.collected_mode || p.advance_mode || "Cash";
+        const isUPI = isUPIMode(mode);
 
         card.innerHTML = `
           <div class="flex items-start justify-between">
@@ -874,7 +918,7 @@
       document.getElementById('cardsList').innerHTML = '';
       document.getElementById('emptyState').classList.add('hidden');
 
-      let endpoint = `${url}/rest/v1/expenses?select=*&order=id.desc&limit=300`;
+      let endpoint = `${url}/rest/v1/expenses?select=*&order=id.desc&limit=5000`;
 
       try {
         const resp = await fetch(endpoint, { headers: getHeaders() });
@@ -986,8 +1030,8 @@
 
       try {
         const [pResp, eResp] = await Promise.all([
-          fetch(`${url}/rest/v1/payments?select=*&limit=300`, { headers: getHeaders() }),
-          fetch(`${url}/rest/v1/expenses?select=*&limit=300`, { headers: getHeaders() })
+          fetch(`${url}/rest/v1/payments?select=*&order=id.desc&limit=5000`, { headers: getHeaders() }),
+          fetch(`${url}/rest/v1/expenses?select=*&order=id.desc&limit=5000`, { headers: getHeaders() })
         ]);
 
         if (pResp.ok && eResp.ok) {
@@ -1013,25 +1057,59 @@
         const rcvd2 = parseFloat(p.collected_today2 || 0);
         const advDate = p.advance_date || "";
         const colDate = p.collected_date || "";
-        const mode = (p.collected_mode || p.advance_mode || "Cash").toUpperCase();
-        const isUPI = mode.includes("UPI") || mode.includes("ONLINE") || mode.includes("GPAY");
+        const mode1 = p.collected_mode || "Cash";
+        const mode2 = p.collected_mode2 || "Cash";
+        const advMode = p.advance_mode || mode1;
 
-        let amt = 0;
         if (timeframeMode === 'daily' && targetDD) {
           if (p.appointment_date === targetDD && colDate && colDate !== targetDD && advDate && advDate !== targetDD) {
-            amt = 0; // Red row
+            // Red row: earlier collection, ₹0 today
           } else if (p.is_advance_booking === 1 || (advDate === targetDD && p.appointment_date !== targetDD)) {
-            amt = advAmt > 0 ? advAmt : rcvd; // Yellow row
+            // Yellow row: advance collected today
+            const a = advAmt > 0 ? advAmt : rcvd;
+            if (isUPIMode(advMode)) incUPI += a; else incCash += a;
           } else {
-            amt = rcvd + rcvd2;
-            if (advDate === targetDD) amt += advAmt;
+            if (colDate === targetDD) {
+              if (isUPIMode(mode1)) incUPI += rcvd; else incCash += rcvd;
+              if (isUPIMode(mode2)) incUPI += rcvd2; else incCash += rcvd2;
+            }
+            if (advDate === targetDD) {
+              if (isUPIMode(advMode)) incUPI += advAmt; else incCash += advAmt;
+            }
           }
         } else {
-          amt = advAmt + rcvd + rcvd2;
-        }
+          // Monthly or Custom Range (EXACT MATCH WITH DESKTOP APP get_payments_by_range)
+          let colInRange = false;
 
-        if (isUPI) incUPI += amt;
-        else incCash += amt;
+          if (timeframeMode === 'monthly') {
+            const mVal = document.getElementById('monthFilter').value;
+            if (mVal) {
+              const [year, month] = mVal.split('-');
+              const targetMMYYYY = `${month}-${year}`;
+              if (colDate && colDate.endsWith(targetMMYYYY)) colInRange = true;
+            } else {
+              colInRange = true;
+            }
+          } else if (timeframeMode === 'custom') {
+            const startISO = document.getElementById('startDateFilter').value;
+            const endISO = document.getElementById('endDateFilter').value;
+            if (startISO && endISO) {
+              const startS = toSortableYYYYMMDD(startISO);
+              const endS = toSortableYYYYMMDD(endISO);
+              const colS = toSortableYYYYMMDD(colDate);
+              if (colS && colS >= startS && colS <= endS) colInRange = true;
+            } else {
+              colInRange = true;
+            }
+          } else {
+            colInRange = true;
+          }
+
+          if (colInRange) {
+            if (isUPIMode(mode1)) incUPI += rcvd; else incCash += rcvd;
+            if (isUPIMode(mode2)) incUPI += rcvd2; else incCash += rcvd2;
+          }
+        }
       });
 
       let expCash = 0, expUPI = 0;
