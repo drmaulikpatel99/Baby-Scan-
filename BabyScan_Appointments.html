@@ -42,25 +42,10 @@
         <span id="connStatusDot" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-teal-800 text-teal-200">
           <span id="dot" class="w-2 h-2 mr-1 rounded-full bg-yellow-400"></span> <span id="connText">Offline</span>
         </span>
-        <button onclick="openTemplateSheet()"
-                class="text-xs font-bold px-2.5 py-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
-                title="Configure Message Template">
-          📋 Template
-        </button>
-        <button onclick="openOffsetSheet()"
-                class="text-xs font-bold px-2.5 py-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
-                title="Configure Arrival Offsets">
-          ⏱ Offsets
-        </button>
-        <button onclick="openQrSettings()"
-                class="text-xs font-bold px-2.5 py-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
-                title="UPI QR Code Settings">
-          💳 UPI QR
-        </button>
-        <button onclick="openConfigModal()"
-                class="p-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm"
-                title="Cloud Database Settings">
-          ⚙️
+        <button onclick="openSettingsMenu()"
+                class="px-3 py-2 rounded-xl bg-teal-800 active:bg-teal-900 text-white shadow-sm font-bold text-sm flex items-center gap-1"
+                title="Open Settings">
+          ⚙️ Settings
         </button>
       </div>
     </div>
@@ -126,6 +111,33 @@
   <!-- ── Modal backdrop ───────────────────────────────────────────────────── -->
   <div id="backdrop" class="fixed inset-0 modal-backdrop z-40 hidden"
        onclick="closeAnySheet()"></div>
+
+  <!-- ── Settings Main Menu ─────────────────────────────────────────────── -->
+  <div id="settingsMenuSheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-gray-800 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div class="font-bold text-lg">⚙️ Settings</div>
+      <button onclick="closeSettingsMenu()" class="w-8 h-8 bg-gray-700 rounded-full font-bold active:bg-gray-600">✕</button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <button onclick="closeSettingsMenu(); openTemplateSheet()" class="w-full text-left bg-white border border-gray-200 px-4 py-4 rounded-xl font-bold text-gray-700 active:bg-gray-50 flex items-center justify-between shadow-sm">
+        <span class="flex items-center gap-2"><span class="text-xl">📋</span> WhatsApp Template</span>
+        <span class="text-gray-400">›</span>
+      </button>
+      <button onclick="closeSettingsMenu(); openQrSettings()" class="w-full text-left bg-white border border-gray-200 px-4 py-4 rounded-xl font-bold text-gray-700 active:bg-gray-50 flex items-center justify-between shadow-sm">
+        <span class="flex items-center gap-2"><span class="text-xl">💳</span> UPI QR Settings</span>
+        <span class="text-gray-400">›</span>
+      </button>
+      <button onclick="closeSettingsMenu(); openOffsetSheet()" class="w-full text-left bg-white border border-gray-200 px-4 py-4 rounded-xl font-bold text-gray-700 active:bg-gray-50 flex items-center justify-between shadow-sm">
+        <span class="flex items-center gap-2"><span class="text-xl">⏱</span> Arrival Time Offsets</span>
+        <span class="text-gray-400">›</span>
+      </button>
+      <button onclick="closeSettingsMenu(); openConfigModal()" class="w-full text-left bg-white border border-gray-200 px-4 py-4 rounded-xl font-bold text-gray-700 active:bg-gray-50 flex items-center justify-between shadow-sm">
+        <span class="flex items-center gap-2"><span class="text-xl">☁️</span> Cloud DB Connection</span>
+        <span class="text-gray-400">›</span>
+      </button>
+    </div>
+  </div>
 
   <!-- ── Cloud DB Connection Settings Modal ──────────────────────────────── -->
   <div id="configModal"
@@ -1556,7 +1568,7 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
     }
 
     // ── UPI QR Settings UI ────────────────────────────────────────────────
-    const DEFAULT_QR_TEMPLATE = "Dear {patient_name}, please scan this QR code to pay for your scan ({scan}) on {date}.";
+    const DEFAULT_QR_TEMPLATE = "નમસ્તે {patient_name}, {date} ના રોજ તમારા સ્કેન ({scan}) ની એપોઇન્ટમેન્ટ કન્ફર્મ કરવા માટે 1000/- રૂપિયા ચૂકવવા વિનંતી.";
 
     function openQrSettings() {
       // Load saved QR if any
@@ -1685,13 +1697,21 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       document.getElementById('sendQrSheet').classList.replace('translate-y-0', 'translate-y-full');
     }
 
-    function dataURLtoFile(dataurl, filename) {
-        let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
-            bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-        while(n--){
-            u8arr[n] = bstr.charCodeAt(n);
-        }
-        return new File([u8arr], filename, {type:mime});
+    // Convert any image to PNG Blob for Clipboard compatibility (Safari requires PNG)
+    async function getPngBlobFromImage(imgSrc) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob(blob => resolve(blob), 'image/png');
+            };
+            img.onerror = reject;
+            img.src = imgSrc;
+        });
     }
 
     async function doSendQr() {
@@ -1702,42 +1722,63 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       if (ph.startsWith('0')) ph = '91' + ph.slice(1);
       if (ph.length === 10)   ph = '91' + ph;
       
-      const msg = document.getElementById('sendQrMsg').value;
-      const qrBase64 = document.getElementById('sendQrPreview').src;
-      
-      const statusEl = document.getElementById('sendQrStatus');
-
-      if (navigator.share && navigator.canShare) {
-        try {
-          const file = dataURLtoFile(qrBase64, 'qr_code.jpg');
-          if (navigator.canShare({ files: [file] })) {
-             await navigator.share({
-               title: 'Payment QR',
-               text: msg,
-               files: [file]
-             });
-             closeSendQrSheet();
-             return;
-          }
-        } catch (err) {
-           console.log("Share failed or cancelled", err);
-           if (err.name === 'AbortError') return; // User cancelled
-        }
-      }
-
-      // Fallback
       if (!ph) {
           alert('No valid phone number for WhatsApp.'); 
           return; 
       }
-      statusEl.textContent = 'Image share not supported. Sending text only.';
-      statusEl.style.color = '#B45309';
-      statusEl.classList.remove('hidden');
       
-      setTimeout(() => {
-        window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
-        closeSendQrSheet();
-      }, 1500);
+      const msg = document.getElementById('sendQrMsg').value;
+      const qrBase64 = document.getElementById('sendQrPreview').src;
+      const statusEl = document.getElementById('sendQrStatus');
+
+      statusEl.textContent = 'Copying QR image...';
+      statusEl.style.color = '#059669';
+      statusEl.classList.remove('hidden');
+
+      try {
+        // 1. Convert to PNG and copy to clipboard
+        const blob = await getPngBlobFromImage(qrBase64);
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+        
+        statusEl.textContent = 'Image Copied! Opening WhatsApp...';
+        
+        // 2. Open specific WhatsApp chat with the text message
+        setTimeout(() => {
+          window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
+          closeSendQrSheet();
+        }, 1200);
+
+      } catch (err) {
+        console.error("Clipboard copy failed:", err);
+        statusEl.textContent = 'Clipboard failed. Opening Share menu...';
+        statusEl.style.color = '#B45309';
+        
+        // 3. Fallback: Native share menu if clipboard is not supported (e.g. old browser or HTTP)
+        setTimeout(async () => {
+          if (navigator.share && navigator.canShare) {
+            try {
+              const file = new File([await getPngBlobFromImage(qrBase64)], 'qr_code.png', {type: 'image/png'});
+              await navigator.share({
+                title: 'Payment QR',
+                text: msg,
+                files: [file]
+              });
+              closeSendQrSheet();
+            } catch (shareErr) {
+              if (shareErr.name !== 'AbortError') {
+                 // Final fallback: just text
+                 window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
+                 closeSendQrSheet();
+              }
+            }
+          } else {
+             // Final fallback: just text
+             window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
+             closeSendQrSheet();
+          }
+        }, 1500);
+      }
     }
 
     // Time/Date Helpers
@@ -1811,6 +1852,18 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       closeTemplateSheet();
       closeQrSettings();
       closeSendQrSheet();
+      closeSettingsMenu();
+    }
+
+    // ── Settings Menu ──────────────────────────────────────────────
+    function openSettingsMenu() {
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('settingsMenuSheet').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeSettingsMenu() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('settingsMenuSheet').classList.replace('translate-y-0', 'translate-y-full');
     }
 
     // Touch Swipe Gestures
