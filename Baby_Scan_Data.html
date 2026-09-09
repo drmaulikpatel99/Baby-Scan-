@@ -814,7 +814,7 @@
 
         if (timeframeMode === 'daily' && targetDD) {
           // RED ROW: Today's patient whose payment was collected on an EARLIER date
-          if (p.appointment_date === targetDD && colDate && colDate !== targetDD && advDate && advDate !== targetDD) {
+          if (p.appointment_date === targetDD && colDate && colDate !== targetDD) {
             isRedRow = true;
             cardClass = "bg-rose-50 border-rose-200";
             rcvdTodayDisplay = 0; // Not collected today!
@@ -1081,7 +1081,7 @@
         const advMode = p.advance_mode || mode1;
 
         if (timeframeMode === 'daily' && targetDD) {
-          if (p.appointment_date === targetDD && colDate && colDate !== targetDD && advDate && advDate !== targetDD) {
+          if (p.appointment_date === targetDD && colDate && colDate !== targetDD) {
             // Red row: earlier collection, ₹0 today
           } else if (p.is_advance_booking === 1 || (advDate === targetDD && p.appointment_date !== targetDD)) {
             // Yellow row: advance collected today
@@ -1273,9 +1273,10 @@
           <h5 class="font-bold text-emerald-900 text-xs uppercase tracking-wider">💳 Billing &amp; Collection</h5>
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div><span class="text-gray-500">Total Scan Fee:</span> <br><strong class="text-base text-gray-900">₹${p.total_charges || 0}</strong></div>
+            <div><span class="text-gray-500">Advance Paid:</span> <br><strong class="text-base text-gray-900">₹${p.advance_amount || 0}</strong></div>
             <div><span class="text-gray-500">Received Today:</span> <br><strong class="text-base text-emerald-700">₹${rcvdToday}</strong></div>
             <div><span class="text-gray-500">Due Balance:</span> <br><strong class="text-base text-rose-700">₹${balance > 0 ? balance : 0}</strong></div>
-            <div><span class="text-gray-500">Payment Mode:</span> <br><strong>${p.collected_mode || p.advance_mode || 'Cash'}</strong></div>
+            <div class="col-span-2"><span class="text-gray-500">Payment Mode:</span> <br><strong>${p.collected_mode || p.advance_mode || 'Cash'}</strong></div>
           </div>
         </div>
 
