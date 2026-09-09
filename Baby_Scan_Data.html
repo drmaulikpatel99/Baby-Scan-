@@ -596,6 +596,31 @@
       }, 500);
     }
 
+    // ── Auto-paginating REST fetch helper ────────────────────────────────────
+    async function fetchPaginated(baseUrl, endpointPath) {
+      let allData = [];
+      let offset = 0;
+      const batchSize = 1000;
+      const separator = endpointPath.includes('?') ? '&' : '?';
+
+      while (true) {
+        const fullUrl = `${baseUrl}/rest/v1/${endpointPath}${separator}limit=${batchSize}&offset=${offset}`;
+        const resp = await fetch(fullUrl, { headers: getHeaders() });
+        if (!resp.ok) {
+          if (resp.status === 403 || resp.status === 401) {
+            try { handleSuspension("Access Revoked (HTTP " + resp.status + ")"); } catch(e) {}
+          }
+          break;
+        }
+        const data = await resp.json();
+        if (!Array.isArray(data) || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      return allData;
+    }
+
     // ── 1. Load Patients ───────────────────────────────────────────────────
     async function loadPatients() {
       const url = localStorage.getItem('sb_url') || DEFAULT_URL;
@@ -605,18 +630,17 @@
       document.getElementById('cardsList').innerHTML = '';
       document.getElementById('emptyState').classList.add('hidden');
 
-      let endpoint = `${url}/rest/v1/patients?select=*&order=id.desc&limit=5000`;
+      let path = 'patients?select=*&order=id.desc';
       
       if (timeframeMode === 'daily') {
         const dateVal = document.getElementById('dateFilter').value;
-        if (dateVal) endpoint += `&Visit_Date=eq.${toDDMMYYYY(dateVal)}`;
+        if (dateVal) path += `&Visit_Date=eq.${toDDMMYYYY(dateVal)}`;
       }
 
       try {
-        const resp = await fetch(endpoint, { headers: getHeaders() });
-
-        if (resp.ok) {
-          rawData = await resp.json();
+        const data = await fetchPaginated(url, path);
+        if (data && data.length >= 0) {
+          rawData = data;
           renderPatients(rawData);
           updateConnStatus(true);
         } else {
@@ -686,13 +710,9 @@
       document.getElementById('cardsList').innerHTML = '';
       document.getElementById('emptyState').classList.add('hidden');
 
-      let endpoint = `${url}/rest/v1/payments?select=*&order=id.desc&limit=5000`;
-
       try {
-        const resp = await fetch(endpoint, { headers: getHeaders() });
-
-        if (resp.ok) {
-          let payments = await resp.json();
+        let payments = await fetchPaginated(url, 'payments?select=*&order=id.desc');
+        if (payments && payments.length >= 0) {
           rawData = filterPaymentsByTimeframe(payments);
           renderPayments(rawData);
           updateConnStatus(true);
@@ -710,6 +730,11 @@
     }
 
     function filterPaymentsByTimeframe(payments) {
+      // Financial Filter: Globally hide zero-payment appointments
+      payments = payments.filter(p => !(parseFloat(p.collected_today || 0) === 0 && 
+                                        parseFloat(p.advance_amount || 0) === 0 && 
+                                        parseFloat(p.collected_today2 || 0) === 0));
+
       if (timeframeMode === 'daily') {
         const targetDD = toDDMMYYYY(document.getElementById('dateFilter').value);
         if (!targetDD) return payments;
@@ -916,15 +941,9 @@
       document.getElementById('loadingText').textContent = 'Fetching expense records...';
       document.getElementById('loadingSpinner').classList.remove('hidden');
       document.getElementById('cardsList').innerHTML = '';
-      document.getElementById('emptyState').classList.add('hidden');
-
-      let endpoint = `${url}/rest/v1/expenses?select=*&order=id.desc&limit=5000`;
-
       try {
-        const resp = await fetch(endpoint, { headers: getHeaders() });
-
-        if (resp.ok) {
-          let expenses = await resp.json();
+        let expenses = await fetchPaginated(url, 'expenses?select=*&order=id.desc');
+        if (expenses && expenses.length >= 0) {
           rawExpenses = filterExpensesByTimeframe(expenses);
           renderExpenses(rawExpenses);
           updateConnStatus(true);
@@ -1029,14 +1048,14 @@
       document.getElementById('cardsList').innerHTML = '';
 
       try {
-        const [pResp, eResp] = await Promise.all([
-          fetch(`${url}/rest/v1/payments?select=*&order=id.desc&limit=5000`, { headers: getHeaders() }),
-          fetch(`${url}/rest/v1/expenses?select=*&order=id.desc&limit=5000`, { headers: getHeaders() })
+        const [paymentsData, expensesData] = await Promise.all([
+          fetchPaginated(url, 'payments?select=*&order=id.desc'),
+          fetchPaginated(url, 'expenses?select=*&order=id.desc')
         ]);
 
-        if (pResp.ok && eResp.ok) {
-          const payments = filterPaymentsByTimeframe(await pResp.json());
-          const expenses = filterExpensesByTimeframe(await eResp.json());
+        if (paymentsData && expensesData) {
+          const payments = filterPaymentsByTimeframe(paymentsData);
+          const expenses = filterExpensesByTimeframe(expensesData);
           renderSummaryReport(payments, expenses);
           updateConnStatus(true);
         }
