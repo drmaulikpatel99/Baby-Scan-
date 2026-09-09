@@ -818,7 +818,7 @@
             isRedRow = true;
             cardClass = "bg-rose-50 border-rose-200";
             rcvdTodayDisplay = 0; // Not collected today!
-            advEarlierTotal += (advAmt + rcvd);
+            advEarlierTotal += (advAmt || rcvd);
           }
           // YELLOW ROW: Future appointment whose advance was collected TODAY
           else if (p.is_advance_booking === 1 || (advDate === targetDD && p.appointment_date !== targetDD)) {
@@ -912,7 +912,7 @@
             </div>
             
             <div class="text-right">
-              <div class="text-sm font-extrabold text-gray-900">₹${total > 0 ? total : rcvdTodayDisplay}</div>
+              <div class="text-sm font-extrabold text-gray-900">₹${isRedRow ? (advAmt || rcvd) : (total > 0 ? total : rcvdTodayDisplay)}</div>
               ${isRedRow ? `
                 <span class="inline-block mt-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-bold text-[10px]">Earlier Adv</span>
               ` : bal > 0 ? `
