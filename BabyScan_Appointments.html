@@ -835,7 +835,10 @@
                 <span class="text-gray-500 font-bold text-sm">${slot}</span>
                 <span class="text-gray-400 text-xs font-semibold">Past</span>
               </div>
-              <div class="text-gray-400 text-sm mt-0.5">— —</div>
+              <div class="flex justify-between items-center mt-0.5">
+                <span class="text-gray-400 text-sm">— —</span>
+                <span class="text-gray-400 text-xs font-medium">Pt Time: ${patientArrivalTime(slot)}</span>
+              </div>
             </div>`);
         } else {
           fragments.push(`
@@ -844,7 +847,10 @@
                 <span class="text-white font-bold text-sm">${slot}</span>
                 <span class="bg-teal-800 text-teal-100 text-xs px-2 py-0.5 rounded-full font-bold">Available</span>
               </div>
-              <div class="text-teal-100 text-sm mt-0.5">Tap to book</div>
+              <div class="flex justify-between items-center mt-0.5">
+                <span class="text-teal-100 text-sm">Tap to book</span>
+                <span class="text-teal-200 text-xs font-medium">Pt Time: ${patientArrivalTime(slot)}</span>
+              </div>
             </div>`);
         }
       }
