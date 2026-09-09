@@ -817,16 +817,16 @@
           const wtLabel   = ev.weight ? `${ev.weight}kg ` : '';
           const slotDisplayTitle = `${pregLabel}${wtLabel}${ev.patient}`;
           fragments.push(`
-            <div class="slot-card bg-red-500 rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openView('${slot}')">
+            <div class="slot-card bg-pink-100 rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openView('${slot}')">
               <div class="flex justify-between items-center mb-1">
-                <span class="text-white font-bold text-sm">${slot}</span>
-                <span class="bg-red-700 text-white text-xs px-2 py-0.5 rounded-full font-bold">Booked</span>
+                <span class="text-pink-900 font-bold text-sm">${slot}</span>
+                <span class="bg-pink-200 text-pink-800 text-xs px-2 py-0.5 rounded-full font-bold">Booked</span>
               </div>
-              <div class="text-white font-semibold text-base leading-tight">${esc(slotDisplayTitle)}</div>
-              <div class="text-red-100 text-sm mt-0.5">${esc(ev.scan)}</div>
-              ${ev.doctor ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
-              ${ev.phone  ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
-              ${ev.advance > 0 ? `<div class="text-red-100 text-xs font-semibold mt-0.5">💰 ₹${ev.advance.toLocaleString('en-IN')} ${esc(ev.mode)}</div>` : ''}
+              <div class="text-pink-900 font-semibold text-base leading-tight">${esc(slotDisplayTitle)}</div>
+              <div class="text-pink-800 text-sm mt-0.5">${esc(ev.scan)}</div>
+              ${ev.doctor ? `<div class="text-pink-700 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
+              ${ev.phone  ? `<div class="text-pink-700 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
+              ${ev.advance > 0 ? `<div class="text-pink-800 text-xs font-semibold mt-0.5">💰 ₹${ev.advance.toLocaleString('en-IN')} ${esc(ev.mode)}</div>` : ''}
             </div>`);
         } else if (isPast) {
           fragments.push(`
@@ -840,13 +840,13 @@
             </div>`);
         } else {
           fragments.push(`
-            <div class="slot-card bg-[#0E6655] rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openNew('${slot}')">
+            <div class="slot-card bg-green-100 rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openNew('${slot}')">
               <div class="flex justify-between items-center">
-                <span class="text-white font-bold text-sm">${slot}</span>
-                <span class="text-teal-200 text-xs font-medium">Pt Time: ${patientArrivalTime(slot)}</span>
-                <span class="bg-teal-800 text-teal-100 text-xs px-2 py-0.5 rounded-full font-bold">Available</span>
+                <span class="text-green-900 font-bold text-sm">${slot}</span>
+                <span class="text-green-700 text-xs font-medium">Pt Time: ${patientArrivalTime(slot)}</span>
+                <span class="bg-green-200 text-green-800 text-xs px-2 py-0.5 rounded-full font-bold">Available</span>
               </div>
-              <div class="text-teal-100 text-sm mt-0.5">Tap to book</div>
+              <div class="text-green-800 text-sm mt-0.5">Tap to book</div>
             </div>`);
         }
       }
