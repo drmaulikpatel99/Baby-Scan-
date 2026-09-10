@@ -106,7 +106,13 @@
   <div id="loadingRow" class="text-center text-gray-400 py-12 text-sm">
     <span class="spinner">⏳</span> Connecting to Supabase Cloud…
   </div>
-  <div id="slotsWrap" class="px-3 pt-3 pb-28 space-y-2"></div>
+  <div class="overflow-hidden w-full relative">
+    <div id="swipeTrack" class="flex flex-row w-[300%] -ml-[100%] transition-transform duration-300">
+      <div id="panePrev" class="w-1/3 px-3 pt-3 pb-28 space-y-2"></div>
+      <div id="paneCurr" class="w-1/3 px-3 pt-3 pb-28 space-y-2"></div>
+      <div id="paneNext" class="w-1/3 px-3 pt-3 pb-28 space-y-2"></div>
+    </div>
+  </div>
 
   <!-- ── Modal backdrop ───────────────────────────────────────────────────── -->
   <div id="backdrop" class="fixed inset-0 modal-backdrop z-40 hidden"
@@ -688,113 +694,108 @@
       }
     }
 
-    // Load Slots & Blocks from Supabase Cloud
-    async function loadSlots(forceRefresh = false) {
-      if (!forceRefresh && cache[selectedDate]) {
-        renderSlots(cache[selectedDate]);
-        return;
-      }
+// Load Slots & Blocks from Supabase Cloud
+    async function fetchDateData(dateStr) {
+      if (cache[dateStr]) return;
+      const dmy = isoToDMY(dateStr);
+      const endpoint = `/rest/v1/payments?or=(appointment_date.eq.${dateStr},appointment_date.eq.${dmy})&order=id.asc`;
+      
+      const data = await supabaseFetch(endpoint);
+      if (!data) return;
 
-      document.getElementById('loadingRow').style.display = 'block';
-      document.getElementById('loadingRow').innerHTML = '<span class="spinner">⏳</span> Reading Supabase Cloud…';
-
-      try {
-        const dmy = isoToDMY(selectedDate);
-        const endpoint = `/rest/v1/payments?or=(appointment_date.eq.${selectedDate},appointment_date.eq.${dmy})&order=id.asc`;
-        
-        const data = await supabaseFetch(endpoint);
-        setConnStatus(true, currentAuthToken ? 'Connected (Auth)' : 'Connected (Cloud)');
-
-        const parsed = {};
-        const blocks = [];
-
-        for (const r of (data || [])) {
-          const isBlocked = r.is_advance_booking === 2 || String(r.patient_name || '').startsWith('🚫');
-          if (isBlocked) {
-            let startMins = 0, endMins = 1440, reason = r.scan_description || '';
-            const metaStr = r.gcal_event_id || r.notes || '';
-            try {
-              if (metaStr && metaStr.startsWith('{')) {
-                const meta = JSON.parse(metaStr);
-                startMins = meta.startMins || 0;
-                endMins = meta.endMins || 1440;
-                reason = meta.reason || reason;
-              } else if (r.appointment_time && r.appointment_time.includes('-')) {
-                const parts = r.appointment_time.split('-');
-                if (parts.length === 2) {
-                  startMins = slotToMins(parts[0].trim());
-                  endMins = slotToMins(parts[1].trim());
-                }
+      const parsed = {};
+      const blocks = [];
+      for (const r of (data || [])) {
+        const isBlocked = r.is_advance_booking === 2 || String(r.patient_name || '').startsWith('🚫');
+        if (isBlocked) {
+          let startMins = 0, endMins = 1440, reason = r.scan_description || '';
+          const metaStr = r.gcal_event_id || r.notes || '';
+          try {
+            if (metaStr && metaStr.startsWith('{')) {
+              const meta = JSON.parse(metaStr);
+              startMins = meta.startMins || 0;
+              endMins = meta.endMins || 1440;
+              reason = meta.reason || reason;
+            } else if (r.appointment_time && r.appointment_time.includes('-')) {
+              const parts = r.appointment_time.split('-');
+              if (parts.length === 2) {
+                startMins = slotToMins(parts[0].trim());
+                endMins = slotToMins(parts[1].trim());
               }
-            } catch(e) {}
-            blocks.push({ id: r.id, startMins, endMins, reason });
-            continue;
-          }
-
-          const slotStr = r.appointment_time || '';
-          if (!slotStr) continue;
-
-          let pregType = '';
-          let weightVal = '';
-          if (r.notes) {
-            try {
-              if (r.notes.startsWith('{')) {
-                const nObj = JSON.parse(r.notes);
-                if (nObj.preg) pregType = nObj.preg;
-                if (nObj.weight) weightVal = String(nObj.weight);
-              }
-            } catch(e) {}
-          }
-
-          parsed[slotStr] = {
-            id: r.id,
-            patient: r.patient_name || '',
-            scan: r.scan_description || 'Scan',
-            doctor: r.referring_doctor || '',
-            phone: r.patient_phone || '',
-            advance: parseFloat(r.advance_amount || r.collected_today || 0),
-            mode: r.advance_mode || r.collected_mode || '',
-            time: slotStr,
-            preg: pregType,
-            weight: weightVal,
-            raw: r
-          };
+            }
+          } catch(e) {}
+          blocks.push({ id: r.id, startMins, endMins, reason });
+          continue;
         }
 
-        cache[selectedDate] = parsed;
-        blockCache[selectedDate] = blocks;
-        renderSlots(parsed);
+        const slotStr = r.appointment_time || '';
+        if (!slotStr) continue;
+
+        let pregType = '', weightVal = '';
+        if (r.notes) {
+          try {
+            if (r.notes.startsWith('{')) {
+              const nObj = JSON.parse(r.notes);
+              if (nObj.preg) pregType = nObj.preg;
+              if (nObj.weight) weightVal = String(nObj.weight);
+            }
+          } catch(e) {}
+        }
+        parsed[slotStr] = {
+          id: r.id, patient: r.patient_name || '', scan: r.scan_description || 'Scan',
+          doctor: r.referring_doctor || '', phone: r.patient_phone || '',
+          advance: parseFloat(r.advance_amount || r.collected_today || 0),
+          mode: r.advance_mode || r.collected_mode || '', time: slotStr,
+          preg: pregType, weight: weightVal, raw: r
+        };
+      }
+      cache[dateStr] = parsed;
+      blockCache[dateStr] = blocks;
+    }
+
+    async function prefetchNeighbors() {
+      const prevDate = addDays(selectedDate, -1);
+      const nextDate = addDays(selectedDate, 1);
+      let changed = false;
+      if (!cache[prevDate]) { await fetchDateData(prevDate); changed = true; }
+      if (!cache[nextDate]) { await fetchDateData(nextDate); changed = true; }
+      if (changed) renderAllPanes();
+    }
+
+    async function loadSlots(forceRefresh = false) {
+      if (forceRefresh) {
+         delete cache[selectedDate];
+      }
+      if (cache[selectedDate]) {
+        renderAllPanes();
+        prefetchNeighbors();
+        return;
+      }
+      document.getElementById('loadingRow').style.display = 'block';
+      document.getElementById('loadingRow').innerHTML = '<span class="spinner">⏳</span> Reading Supabase Cloud…';
+      try {
+        await fetchDateData(selectedDate);
+        setConnStatus(true, currentAuthToken ? 'Connected (Auth)' : 'Connected (Cloud)');
+        renderAllPanes();
+        prefetchNeighbors();
       } catch (e) {
         setConnStatus(false, 'Error');
         toast('Failed to load: ' + e.message, 'red');
-        renderSlots(cache[selectedDate] || {});
+        renderAllPanes();
       }
     }
 
-    // Render Slots Grid
-    function renderSlots(events) {
-      const wrap = document.getElementById('slotsWrap');
-      document.getElementById('loadingRow').style.display = 'none';
 
-      const nowIST   = nowInIST();
-      const isToday_ = (selectedDate === isoToday());
-      const blocks   = blockCache[selectedDate] || [];
-      const fragments = [];
-
-      // Update Block Banner
-      const banner = document.getElementById('blockBanner');
-      if (blocks.length > 0) {
-        const b = blocks[0];
-        const startFmt = minsToTimeStr(b.startMins);
-        const endFmt   = minsToTimeStr(b.endMins);
-        document.getElementById('blockBannerTitle').textContent = `⚠ Blocked ${startFmt} – ${endFmt}`;
-        document.getElementById('blockBannerSub').textContent = b.reason ? b.reason : 'Clinic unavailable';
-        banner.classList.remove('hidden');
-      } else {
-        banner.classList.add('hidden');
+        function buildSlotsHTML(dateStr) {
+      if (!cache[dateStr]) {
+        return '<div class="text-center text-gray-400 py-12 text-sm"><span class="spinner">⏳</span> Fetching...</div>';
       }
+      const events = cache[dateStr];
+      const blocks = blockCache[dateStr] || [];
+      const fragments = [];
+      const nowIST   = nowInIST();
+      const isToday_ = (dateStr === isoToday());
 
-      // Render Slots
       for (const slot of SLOTS) {
         const ev       = events[slot];
         const isPast   = isToday_ && slotPast(slot, nowIST);
@@ -843,9 +844,33 @@
             </div>`);
         }
       }
-
-      wrap.innerHTML = fragments.join('');
+      return fragments.join('');
     }
+
+    function renderSlots() {
+      document.getElementById('loadingRow').style.display = 'none';
+
+      // Update Block Banner for Current Date
+      const blocks = blockCache[selectedDate] || [];
+      const banner = document.getElementById('blockBanner');
+      if (blocks.length > 0) {
+        const b = blocks[0];
+        document.getElementById('blockBannerTitle').textContent = `⚠ Blocked ${minsToTimeStr(b.startMins)} – ${minsToTimeStr(b.endMins)}`;
+        document.getElementById('blockBannerSub').textContent = b.reason ? b.reason : 'Clinic unavailable';
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+
+      // Render 3 Panes
+      const datePrev = addDays(selectedDate, -1);
+      const dateNext = addDays(selectedDate, 1);
+      
+      document.getElementById('panePrev').innerHTML = buildSlotsHTML(datePrev);
+      document.getElementById('paneCurr').innerHTML = buildSlotsHTML(selectedDate);
+      document.getElementById('paneNext').innerHTML = buildSlotsHTML(dateNext);
+    }
+
 
     async function fetchNextPaymentId() {
       try {
@@ -1868,7 +1893,7 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
     (function () {
       const SWIPE_H_MIN = 70, SWIPE_V_MIN = 80, SWIPE_V_LOCK = 40;
       let tx = 0, ty = 0, active = false, isDraggingH = false, isDraggingV = false;
-      const wrap = document.getElementById('slotsWrap');
+      const wrap = document.getElementById('swipeTrack');
 
       function sheetOpen() {
         const s = document.getElementById('sheet');
@@ -1925,25 +1950,18 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
           if (dx < -SWIPE_H_MIN) {
              wrap.style.transform = `translateX(-100vw)`;
              setTimeout(() => {
-               navigate(1);
                wrap.style.transition = 'none';
-               wrap.style.transform = `translateX(100vw)`;
-               void wrap.offsetWidth; // Force reflow
-               wrap.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                wrap.style.transform = `translateX(0px)`;
-             }, 250);
+               navigate(1);
+             }, 300);
           } else if (dx > SWIPE_H_MIN) {
              wrap.style.transform = `translateX(100vw)`;
              setTimeout(() => {
-               navigate(-1);
                wrap.style.transition = 'none';
-               wrap.style.transform = `translateX(-100vw)`;
-               void wrap.offsetWidth; // Force reflow
-               wrap.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                wrap.style.transform = `translateX(0px)`;
-             }, 250);
+               navigate(-1);
+             }, 300);
           } else {
-             // Snap back to center if swipe wasn't far enough
              wrap.style.transform = `translateX(0px)`;
           }
         }
