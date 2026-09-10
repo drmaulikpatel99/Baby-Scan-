@@ -813,9 +813,11 @@
               <div class="text-orange-100 text-sm mt-0.5">${esc(reason)}</div>
             </div>`);
         } else if (ev) {
-          const pregLabel = ev.preg ? `${ev.preg} ` : '';
-          const wtLabel   = ev.weight ? `${ev.weight}kg ` : '';
-          const slotDisplayTitle = `${pregLabel}${wtLabel}${ev.patient}`;
+          const parts = [];
+          if (ev.preg) parts.push(ev.preg);
+          if (ev.weight) parts.push(`${ev.weight}Kg`);
+          const prefix = parts.length > 0 ? `(${parts.join(' ')}) ` : '';
+          const slotDisplayTitle = `${prefix}${ev.patient}`;
           fragments.push(`
             <div class="slot-card bg-pink-100 rounded-2xl p-4 shadow-sm cursor-pointer fade-in" onclick="openView('${slot}')">
               <div class="flex justify-between items-center mb-1">
