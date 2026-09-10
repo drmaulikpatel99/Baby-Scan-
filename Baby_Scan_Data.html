@@ -898,7 +898,7 @@
                 ${isRedRow ? `
                   <span class="px-2 py-0.5 rounded-md bg-rose-200 text-rose-900 font-bold text-[10px]">PREVIOUSLY PAID (₹0 TODAY)</span>
                 ` : isYellowRow ? `
-                  <span class="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-bold text-[10px]">ADVANCE BOOKING TODAY</span>
+                  <span class="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-bold text-[10px]">ADVANCE BOOKING: ₹${rcvdTodayDisplay} (${advMode})</span>
                 ` : `
                   <span class="px-2 py-0.5 rounded-md ${isUPI ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'} font-bold text-xs">
                     Received: ₹${rcvdTodayDisplay} (${mode})
