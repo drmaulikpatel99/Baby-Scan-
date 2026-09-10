@@ -847,6 +847,12 @@
       return fragments.join('');
     }
 
+        function addDays(dateStr, delta) {
+      const d = new Date(dateStr + 'T12:00:00');
+      d.setDate(d.getDate() + delta);
+      return d.toISOString().slice(0, 10);
+    }
+
     function renderAllPanes() {
       document.getElementById('loadingRow').style.display = 'none';
 
