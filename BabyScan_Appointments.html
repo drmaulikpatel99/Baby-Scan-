@@ -1864,31 +1864,88 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       document.getElementById('settingsMenuSheet').classList.replace('translate-y-0', 'translate-y-full');
     }
 
-    // Touch Swipe Gestures
+    // Touch Swipe Gestures with Animation
     (function () {
-      const SWIPE_H_MIN = 60, SWIPE_V_MIN = 80, SWIPE_V_LOCK = 40, RATIO_H = 1.5;
-      let tx = 0, ty = 0, active = false;
+      const SWIPE_H_MIN = 70, SWIPE_V_MIN = 80, SWIPE_V_LOCK = 40;
+      let tx = 0, ty = 0, active = false, isDraggingH = false, isDraggingV = false;
+      const wrap = document.getElementById('slotsWrap');
 
       function sheetOpen() {
         const s = document.getElementById('sheet');
-        return s && !s.classList.contains('translate-y-full');
+        const r = document.getElementById('receiptMenuSheet');
+        const sm = document.getElementById('settingsMenuSheet');
+        return (s && !s.classList.contains('translate-y-full')) ||
+               (r && !r.classList.contains('translate-y-full')) ||
+               (sm && !sm.classList.contains('translate-y-full'));
       }
 
       document.addEventListener('touchstart', (e) => {
         if (sheetOpen()) return;
-        tx = e.touches[0].clientX; ty = e.touches[0].clientY; active = true;
+        tx = e.touches[0].clientX; ty = e.touches[0].clientY; 
+        active = true; isDraggingH = false; isDraggingV = false;
+        wrap.style.transition = 'none';
       }, { passive: true });
+
+      document.addEventListener('touchmove', (e) => {
+        if (!active || sheetOpen()) return;
+        const cx = e.touches[0].clientX;
+        const cy = e.touches[0].clientY;
+        const dx = cx - tx;
+        const dy = cy - ty;
+        const adx = Math.abs(dx);
+        const ady = Math.abs(dy);
+        
+        if (!isDraggingH && !isDraggingV) {
+           if (ady > 10 && ady > adx) isDraggingV = true;
+           else if (adx > 10 && adx > ady) isDraggingH = true;
+        }
+
+        if (isDraggingH) {
+           // Prevent vertical scrolling while swiping horizontally
+           if (e.cancelable) e.preventDefault();
+           wrap.style.transform = `translateX(${dx}px)`;
+        }
+      }, { passive: false });
 
       document.addEventListener('touchend', (e) => {
         if (!active || sheetOpen()) { active = false; return; }
         active = false;
         const t = e.changedTouches[0];
         const dx = t.clientX - tx, dy = t.clientY - ty;
-        const adx = Math.abs(dx), ady = Math.abs(dy);
+        const adx = Math.abs(dx);
 
-        if (dy >= SWIPE_V_MIN && adx < SWIPE_V_LOCK) { doRefresh(); return; }
-        if (adx >= SWIPE_H_MIN && adx >= ady * RATIO_H) {
-          if (dx < 0) navigate(1); else navigate(-1);
+        wrap.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+
+        if (!isDraggingH && dy >= SWIPE_V_MIN && adx < SWIPE_V_LOCK) { 
+           doRefresh(); 
+           return; 
+        }
+
+        if (isDraggingH) {
+          if (dx < -SWIPE_H_MIN) {
+             wrap.style.transform = `translateX(-100vw)`;
+             setTimeout(() => {
+               navigate(1);
+               wrap.style.transition = 'none';
+               wrap.style.transform = `translateX(100vw)`;
+               void wrap.offsetWidth; // Force reflow
+               wrap.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+               wrap.style.transform = `translateX(0px)`;
+             }, 250);
+          } else if (dx > SWIPE_H_MIN) {
+             wrap.style.transform = `translateX(100vw)`;
+             setTimeout(() => {
+               navigate(-1);
+               wrap.style.transition = 'none';
+               wrap.style.transform = `translateX(-100vw)`;
+               void wrap.offsetWidth; // Force reflow
+               wrap.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+               wrap.style.transform = `translateX(0px)`;
+             }, 250);
+          } else {
+             // Snap back to center if swipe wasn't far enough
+             wrap.style.transform = `translateX(0px)`;
+          }
         }
       }, { passive: true });
     })();
