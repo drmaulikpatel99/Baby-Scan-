@@ -857,7 +857,7 @@
           }
 
           fragments.push(`
-            <div class="slot-card ${bgColor} rounded-xl px-3 py-2 shadow-sm cursor-pointer fade-in flex items-center justify-between" onclick="openView('${slot}')" oncontextmenu="handleRightClick(event, '${slot}')">
+            <div class="slot-card ${bgColor} rounded-xl px-3 py-2 shadow-sm cursor-pointer fade-in flex items-center justify-between" onclick="openView('${slot}')" oncontextmenu="handleRightClick(event, '${slot}')" ontouchstart="handleTouchStart(event, '${slot}')" ontouchmove="handleTouchMove(event)" ontouchend="handleTouchEnd(event)">
               <div class="flex items-center flex-1 min-w-0">
                 <span class="${textColor} font-bold text-sm w-[70px] flex-shrink-0">${slot}</span>
                 <div class="flex flex-col min-w-0 flex-1 pl-1">
@@ -2022,6 +2022,28 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
 
     // ── Status Menu Logic ──
     let currentStatusSlot = null;
+    let _touchTimer = null;
+    let _touchMoved = false;
+
+    function handleTouchStart(e, slot) {
+      _touchMoved = false;
+      if (_touchTimer) clearTimeout(_touchTimer);
+      _touchTimer = setTimeout(() => {
+        if (!_touchMoved) {
+          if(navigator.vibrate) navigator.vibrate(50); // Haptic feedback on long press
+          handleRightClick(e, slot);
+        }
+      }, 550); // 550ms hold time for long press
+    }
+
+    function handleTouchMove(e) {
+      _touchMoved = true;
+      if (_touchTimer) clearTimeout(_touchTimer);
+    }
+
+    function handleTouchEnd(e) {
+      if (_touchTimer) clearTimeout(_touchTimer);
+    }
 
     function handleRightClick(e, slot) {
       e.preventDefault();
