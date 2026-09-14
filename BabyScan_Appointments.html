@@ -15,7 +15,7 @@
   <style>
     * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F7; }
-    .slot-card { transition: transform 0.1s, box-shadow 0.1s; }
+    .slot-card { transition: transform 0.1s, box-shadow 0.1s; -webkit-touch-callout: none; user-select: none; }
     .slot-card:active { transform: scale(0.97); }
     .modal-sheet { transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
     .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(3px); }
@@ -408,26 +408,19 @@
     </div>
   </div>
 
-  <!-- ── Status Menu Bottom Sheet ─────────────────────────────────────────────── -->
-  <div id="statusSheet" class="modal-sheet fixed inset-x-0 bottom-0 z-[70] bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
-    <div class="bg-gray-800 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
-      <div>
-        <div class="font-bold text-lg">Update Status</div>
-        <div id="statusSheetSubtitle" class="text-gray-300 text-xs mt-0.5"></div>
-      </div>
-      <button onclick="closeStatusSheet()" class="w-8 h-8 bg-gray-700 rounded-full font-bold active:bg-gray-600">✕</button>
-    </div>
-    <div class="px-5 pt-4 pb-8 space-y-3">
-      <button onclick="setStatus('Arrived')" class="w-full bg-yellow-100 text-yellow-800 border border-yellow-300 py-3 rounded-xl font-bold text-base active:bg-yellow-200 shadow-sm flex items-center justify-center gap-2">
-        📍 Patient Arrived
-      </button>
-      <button onclick="setStatus('Completed')" class="w-full bg-blue-100 text-blue-800 border border-blue-300 py-3 rounded-xl font-bold text-base active:bg-blue-200 shadow-sm flex items-center justify-center gap-2">
-        ✅ Scan Completed
-      </button>
-      <button onclick="setStatus('')" class="w-full bg-gray-100 text-gray-700 border border-gray-300 py-3 rounded-xl font-bold text-base active:bg-gray-200 shadow-sm mt-4 flex items-center justify-center gap-2">
-        ↺ Undo (Reset Color)
-      </button>
-    </div>
+  <!-- ── Floating Status Menu ─────────────────────────────────────────────── -->
+  <div id="statusMenuBackdrop" class="fixed inset-0 z-[75] hidden" onclick="closeStatusMenu()" oncontextmenu="event.preventDefault(); closeStatusMenu();"></div>
+  <div id="statusMenu" class="fixed z-[80] bg-white rounded-xl shadow-2xl border border-gray-100 hidden transform scale-95 opacity-0 transition-all duration-150 flex flex-col w-48 overflow-hidden">
+    <div class="px-3 py-2 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 truncate" id="statusMenuSubtitle"></div>
+    <button onclick="setStatus('Arrived')" class="flex items-center gap-2 w-full text-left px-4 py-3 text-sm font-bold text-yellow-700 bg-white hover:bg-yellow-50 active:bg-yellow-100 border-b border-gray-50">
+      📍 Arrived
+    </button>
+    <button onclick="setStatus('Completed')" class="flex items-center gap-2 w-full text-left px-4 py-3 text-sm font-bold text-blue-700 bg-white hover:bg-blue-50 active:bg-blue-100 border-b border-gray-50">
+      ✅ Completed
+    </button>
+    <button onclick="setStatus('')" class="flex items-center gap-2 w-full text-left px-4 py-3 text-sm font-bold text-gray-600 bg-white hover:bg-gray-50 active:bg-gray-100">
+      ↺ Reset Color
+    </button>
   </div>
 
   <!-- ── Bottom-sheet appointment form ────────────────────────────────────── -->
@@ -1181,7 +1174,9 @@
       showSheet();
     }
 
+    let _justRightClicked = false;
     function openView(slot) {
+      if (_justRightClicked) return;
       const ev = (cache[selectedDate] || {})[slot];
       if (!ev) return;
       editingId   = ev.id;
@@ -1932,6 +1927,7 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       closeQrSettings();
       closeSendQrSheet();
       closeSettingsMenu();
+      if (typeof closeStatusMenu === 'function') closeStatusMenu();
     }
 
     // ── Settings Menu ──────────────────────────────────────────────
@@ -2029,17 +2025,57 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
 
     function handleRightClick(e, slot) {
       e.preventDefault();
+      e.stopPropagation();
+      _justRightClicked = true;
+      setTimeout(() => _justRightClicked = false, 500);
       currentStatusSlot = slot;
       const ev = cache[selectedDate][slot];
       if (ev) {
-        document.getElementById('statusSheetSubtitle').textContent = ev.patient;
-        openSheet('statusSheet');
+        document.getElementById('statusMenuSubtitle').textContent = ev.patient;
+        
+        const menu = document.getElementById('statusMenu');
+        const backdrop = document.getElementById('statusMenuBackdrop');
+        
+        backdrop.classList.remove('hidden');
+        menu.classList.remove('hidden');
+        
+        // Use exact pointer coordinates
+        let x = e.clientX;
+        let y = e.clientY;
+        if (e.touches && e.touches.length > 0) {
+          x = e.touches[0].clientX;
+          y = e.touches[0].clientY;
+        }
+
+        // Keep inside screen bounds (Menu is ~192px wide and ~150px tall)
+        const mw = 192;
+        const mh = 150;
+        if (x + mw > window.innerWidth - 10) x = window.innerWidth - mw - 10;
+        if (y + mh > window.innerHeight - 10) y = window.innerHeight - mh - 10;
+        
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        
+        // Trigger animation
+        requestAnimationFrame(() => {
+          menu.classList.remove('scale-95', 'opacity-0');
+          menu.classList.add('scale-100', 'opacity-100');
+        });
       }
     }
 
-    function closeStatusSheet() {
-      closeSheet('statusSheet');
-      currentStatusSlot = null;
+    function closeStatusMenu() {
+      const menu = document.getElementById('statusMenu');
+      const backdrop = document.getElementById('statusMenuBackdrop');
+      
+      menu.classList.remove('scale-100', 'opacity-100');
+      menu.classList.add('scale-95', 'opacity-0');
+      
+      setTimeout(() => {
+        menu.classList.add('hidden');
+        backdrop.classList.add('hidden');
+        currentStatusSlot = null;
+      }, 150);
     }
 
     async function setStatus(newStatus) {
@@ -2047,7 +2083,7 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
       const slot = currentStatusSlot;
       const ev = cache[selectedDate][slot];
       
-      closeStatusSheet();
+      closeStatusMenu();
       
       // Optimistic local update
       ev.status = newStatus;
