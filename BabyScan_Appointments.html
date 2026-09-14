@@ -408,6 +408,28 @@
     </div>
   </div>
 
+  <!-- ── Status Menu Bottom Sheet ─────────────────────────────────────────────── -->
+  <div id="statusSheet" class="modal-sheet fixed inset-x-0 bottom-0 z-[70] bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+    <div class="bg-gray-800 rounded-t-2xl px-5 py-4 flex justify-between items-center text-white">
+      <div>
+        <div class="font-bold text-lg">Update Status</div>
+        <div id="statusSheetSubtitle" class="text-gray-300 text-xs mt-0.5"></div>
+      </div>
+      <button onclick="closeStatusSheet()" class="w-8 h-8 bg-gray-700 rounded-full font-bold active:bg-gray-600">✕</button>
+    </div>
+    <div class="px-5 pt-4 pb-8 space-y-3">
+      <button onclick="setStatus('Arrived')" class="w-full bg-yellow-100 text-yellow-800 border border-yellow-300 py-3 rounded-xl font-bold text-base active:bg-yellow-200 shadow-sm flex items-center justify-center gap-2">
+        📍 Patient Arrived
+      </button>
+      <button onclick="setStatus('Completed')" class="w-full bg-blue-100 text-blue-800 border border-blue-300 py-3 rounded-xl font-bold text-base active:bg-blue-200 shadow-sm flex items-center justify-center gap-2">
+        ✅ Scan Completed
+      </button>
+      <button onclick="setStatus('')" class="w-full bg-gray-100 text-gray-700 border border-gray-300 py-3 rounded-xl font-bold text-base active:bg-gray-200 shadow-sm mt-4 flex items-center justify-center gap-2">
+        ↺ Undo (Reset Color)
+      </button>
+    </div>
+  </div>
+
   <!-- ── Bottom-sheet appointment form ────────────────────────────────────── -->
   <div id="sheet"
        class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
@@ -731,13 +753,14 @@
         const slotStr = r.appointment_time || '';
         if (!slotStr) continue;
 
-        let pregType = '', weightVal = '';
+        let pregType = '', weightVal = '', statusVal = '';
         if (r.notes) {
           try {
             if (r.notes.startsWith('{')) {
               const nObj = JSON.parse(r.notes);
               if (nObj.preg) pregType = nObj.preg;
               if (nObj.weight) weightVal = String(nObj.weight);
+              if (nObj.status) statusVal = nObj.status;
             }
           } catch(e) {}
         }
@@ -746,7 +769,7 @@
           doctor: r.referring_doctor || '', phone: r.patient_phone || '',
           advance: parseFloat(r.advance_amount || r.collected_today || 0),
           mode: r.advance_mode || r.collected_mode || '', time: slotStr,
-          preg: pregType, weight: weightVal, raw: r
+          preg: pregType, weight: weightVal, status: statusVal, raw: r
         };
       }
       cache[dateStr] = parsed;
@@ -826,13 +849,27 @@
               </a>`;
           }
 
+          let bgColor = 'bg-pink-100';
+          let textColor = 'text-pink-900';
+          let subTextColor = 'text-pink-700';
+          
+          if (ev.status === 'Arrived') {
+            bgColor = 'bg-yellow-100';
+            textColor = 'text-yellow-900';
+            subTextColor = 'text-yellow-700';
+          } else if (ev.status === 'Completed') {
+            bgColor = 'bg-blue-100';
+            textColor = 'text-blue-900';
+            subTextColor = 'text-blue-700';
+          }
+
           fragments.push(`
-            <div class="slot-card bg-pink-100 rounded-xl px-3 py-2 shadow-sm cursor-pointer fade-in flex items-center justify-between" onclick="openView('${slot}')">
+            <div class="slot-card ${bgColor} rounded-xl px-3 py-2 shadow-sm cursor-pointer fade-in flex items-center justify-between" onclick="openView('${slot}')" oncontextmenu="handleRightClick(event, '${slot}')">
               <div class="flex items-center flex-1 min-w-0">
-                <span class="text-pink-900 font-bold text-sm w-[70px] flex-shrink-0">${slot}</span>
+                <span class="${textColor} font-bold text-sm w-[70px] flex-shrink-0">${slot}</span>
                 <div class="flex flex-col min-w-0 flex-1 pl-1">
-                  <span class="text-pink-900 font-bold text-[13px] leading-tight truncate">🏥 ${esc(slotDisplayTitle)}</span>
-                  <span class="text-pink-700 font-medium text-[11px] leading-tight truncate mt-0.5">${esc(ev.scan)}</span>
+                  <span class="${textColor} font-bold text-[13px] leading-tight truncate">🏥 ${esc(slotDisplayTitle)}</span>
+                  <span class="${subTextColor} font-medium text-[11px] leading-tight truncate mt-0.5">${esc(ev.scan)}</span>
                 </div>
               </div>
               ${callBtnHtml}
@@ -1986,6 +2023,65 @@ Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
         }
       }, { passive: true });
     })();
+
+    // ── Status Menu Logic ──
+    let currentStatusSlot = null;
+
+    function handleRightClick(e, slot) {
+      e.preventDefault();
+      currentStatusSlot = slot;
+      const ev = cache[selectedDate][slot];
+      if (ev) {
+        document.getElementById('statusSheetSubtitle').textContent = ev.patient;
+        openSheet('statusSheet');
+      }
+    }
+
+    function closeStatusSheet() {
+      closeSheet('statusSheet');
+      currentStatusSlot = null;
+    }
+
+    async function setStatus(newStatus) {
+      if (!currentStatusSlot) return;
+      const slot = currentStatusSlot;
+      const ev = cache[selectedDate][slot];
+      
+      closeStatusSheet();
+      
+      // Optimistic local update
+      ev.status = newStatus;
+      renderAllPanes();
+
+      // Build notes JSON
+      let notesObj = {};
+      if (ev.raw.notes) {
+        try {
+          if (ev.raw.notes.startsWith('{')) {
+            notesObj = JSON.parse(ev.raw.notes);
+          }
+        } catch(e){}
+      }
+      
+      if (newStatus) {
+        notesObj.status = newStatus;
+      } else {
+        delete notesObj.status;
+      }
+      
+      const notesStr = Object.keys(notesObj).length > 0 ? JSON.stringify(notesObj) : "";
+      ev.raw.notes = notesStr;
+
+      // Persist to Supabase
+      try {
+        await supabaseFetch(`/rest/v1/payments?id=eq.${ev.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ notes: notesStr })
+        });
+      } catch (err) {
+        toast("Failed to save status to cloud", "red");
+      }
+    }
   </script>
 </body>
 </html>
