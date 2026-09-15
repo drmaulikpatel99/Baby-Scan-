@@ -959,6 +959,17 @@
       btn.disabled    = true;
 
       try {
+        let finalAdvanceDate = isoToDMY(isoToday());
+        let finalCollectedDate = isoToDMY(isoToday());
+
+        if (editingId) {
+          const ev = (cache[selectedDate] || {})[currentSlot];
+          if (ev && ev.raw && ev.raw.advance_date && parseFloat(ev.raw.advance_amount || 0) > 0) {
+            finalAdvanceDate = ev.raw.advance_date;
+            finalCollectedDate = ev.raw.collected_date || ev.raw.advance_date;
+          }
+        }
+
         const notesObj = { preg: pregType, weight: weightVal };
         const payload = {
           patient_name: patient,
@@ -967,10 +978,10 @@
           patient_phone: phone,
           advance_amount: advance,
           advance_mode: advMode,
-          advance_date: isoToDMY(isoToday()),
+          advance_date: finalAdvanceDate,
           collected_mode: advMode,
           collected_today: advance,
-          collected_date: isoToDMY(isoToday()),
+          collected_date: finalCollectedDate,
           appointment_date: isoToDMY(dateISO),
           appointment_time: timeStr,
           is_advance_booking: 1,
