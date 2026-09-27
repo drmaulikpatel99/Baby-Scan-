@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#5b21b6">
+  <title>Baby Scan — Lab Register</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background-color: #f8fafc;
+      color: #0f172a;
+      touch-action: manipulation;
+    }
+
+    /* Glassmorphism Header */
+    .glass-header {
+      background: rgba(91, 33, 182, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Smooth Modal Sheet Transitions */
+    .modal-sheet {
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      will-change: transform, opacity;
+      max-height: 90vh;
+    }
+
+    /* Card Micro-interactions */
+    .card-item {
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .card-item:active {
+      transform: scale(0.985);
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      animation: spin 0.8s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Pulse animation */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.3); }
+    }
+    .pulse-glow {
+      animation: pulseGlow 1.8s ease-in-out infinite;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.725rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    input, select, textarea {
+      font-size: 16px !important; /* Prevents auto-zoom on iOS */
+    }
+
+    .fade-in-up {
+      animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen pb-20 flex flex-col antialiased selection:bg-purple-200">
+
+<!-- ── Main App Bar ────────────────────────────────────────────────── -->
+<header class="glass-header text-white sticky top-0 z-30 shadow-md border-b border-purple-700/40">
+  <div class="max-w-xl mx-auto px-4 py-3 flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <a href="BabyScan_Appointments.html"
+         class="w-9 h-9 flex items-center justify-center rounded-xl bg-purple-900/60 border border-purple-500/30 text-white active:scale-95 transition-transform font-bold text-lg">
+        ‹
+      </a>
+      <div>
+        <div class="text-base font-extrabold tracking-tight flex items-center gap-1.5">
+          <span>🧪</span> <span>Lab Register</span>
+        </div>
+        <div class="text-[11px] font-medium text-purple-200/90 tracking-wide">Baby Scan · Fetal Medicine</div>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <button onclick="openTemplateSheet()" title="Edit WhatsApp Template"
+              class="text-xs font-semibold px-3 py-2 rounded-xl bg-purple-900/60 hover:bg-purple-900/80 active:scale-95 transition-all text-purple-100 border border-purple-500/30 flex items-center gap-1.5 shadow-sm">
+        <span>📋</span> <span>Template</span>
+      </button>
+      <button onclick="toggleConfig()" title="Configure Supabase"
+              class="text-xs font-semibold px-3 py-2 rounded-xl bg-purple-900/60 hover:bg-purple-900/80 active:scale-95 transition-all text-purple-100 border border-purple-500/30 flex items-center gap-1.5 shadow-sm">
+        <span>⚙️</span> <span>Settings</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+
+
+<!-- ── Global Toast ────────────────────────────────────────────────── -->
+<div id="toast" class="fixed top-16 inset-x-4 z-50 hidden max-w-md mx-auto pointer-events-none">
+  <div id="toastInner" class="rounded-2xl px-4 py-3 text-xs font-bold text-center shadow-xl text-white backdrop-blur-md transition-all"></div>
+</div>
+
+<main class="max-w-xl mx-auto w-full flex-1 flex flex-col">
+
+<!-- ── Quick Action Controls & Month Selector ─────────────────────────────── -->
+<div class="bg-white border-b border-slate-200/80 shadow-xs sticky top-[57px] z-20 space-y-2 px-3 py-2.5">
+  <!-- Month Selector Bar -->
+  <div class="flex items-center justify-between bg-purple-50/80 border border-purple-100 rounded-2xl px-3 py-1.5">
+    <button onclick="changeMonth(-1)" title="Previous Month"
+            class="w-8 h-8 flex items-center justify-center rounded-xl bg-white text-purple-700 font-extrabold text-base border border-purple-200 shadow-xs active:scale-95 transition-all">
+      ‹
+    </button>
+    <div class="flex items-center gap-2">
+      <span class="text-sm">📅</span>
+      <input id="monthPicker" type="month" onchange="onMonthPickerChange(this.value)"
+             class="text-xs font-extrabold text-purple-900 bg-transparent focus:outline-none cursor-pointer">
+    </div>
+    <button onclick="changeMonth(1)" title="Next Month"
+            class="w-8 h-8 flex items-center justify-center rounded-xl bg-white text-purple-700 font-extrabold text-base border border-purple-200 shadow-xs active:scale-95 transition-all">
+      ›
+    </button>
+  </div>
+
+  <!-- Quick Action Controls -->
+  <div class="flex gap-2">
+    <button onclick="manualRefresh()"
+            class="flex-1 bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold py-2 px-3 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-slate-200/60 shadow-xs">
+      <span id="qaRefreshIcon">🔄</span> <span>Refresh</span>
+    </button>
+    <button onclick="openAddSheet()"
+            class="flex-1 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold py-2 px-3 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-600/20">
+      <span>➕</span> <span>Add Entry</span>
+    </button>
+  </div>
+</div>
+
+<!-- ── Search & Filter Controls ───────────────────────────────────── -->
+<div class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-3 py-2.5 space-y-2 sticky top-[148px] z-10">
+  <div class="relative">
+    <input id="searchInput" type="search" placeholder="🔍 Search by patient name..."
+           oninput="onSearchInput()"
+           class="w-full border border-slate-200 rounded-xl pl-3.5 pr-4 py-2 text-xs font-medium text-slate-800
+                  focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 bg-slate-50/80 transition-all placeholder:text-slate-400">
+  </div>
+  <div class="flex gap-2">
+    <select id="filterProc" onchange="renderCards()"
+            class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700
+                   bg-slate-50/80 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all">
+      <option value="">All Procedures</option>
+    </select>
+    <select id="filterStatus" onchange="renderCards()"
+            class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700
+                   bg-slate-50/80 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all">
+      <option value="">All Statuses</option>
+      <option value="action">⚠ Action Needed</option>
+      <option value="awaiting">⏳ Report Awaited</option>
+      <option value="done">✅ Sent to Patient</option>
+    </select>
+  </div>
+</div>
+
+<!-- ── Main Register List View ────────────────────────────────────── -->
+<div id="loadingRow" class="hidden text-center text-slate-400 py-16 text-xs font-medium">
+  <div class="spinner text-purple-600 text-2xl mb-2">⏳</div>
+  <div>Loading register database...</div>
+</div>
+
+<div id="cardsWrap" class="px-3 pt-3 pb-24 space-y-2.5"></div>
+
+<div id="emptyState" class="hidden text-center py-20 text-slate-400 text-xs font-medium">
+  <div class="text-4xl mb-2 opacity-80">🧬</div>
+  <div id="emptyMsg" class="font-semibold text-slate-500">No records found</div>
+</div>
+
+</main>
+
+<!-- ── Backdrop ───────────────────────────────────────────────────── -->
+<div id="backdrop" class="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-40 hidden transition-opacity"
+     onclick="closeAllSheets()"></div>
+
+<!-- ── Supabase Cloud Settings Sheet ─────────────────────────────── -->
+<div id="configPanel"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl transform translate-y-full hidden max-w-xl mx-auto border-t border-slate-100">
+  <div class="bg-purple-800 rounded-t-3xl px-5 py-4 flex justify-between items-center text-white">
+    <div>
+      <div class="font-extrabold text-base tracking-tight">⚙️ Supabase Cloud Settings</div>
+      <div class="text-purple-200 text-xs mt-0.5">Project URL & Auth Credentials</div>
+    </div>
+    <button onclick="toggleConfig()" class="w-7 h-7 bg-purple-950/80 rounded-full font-bold active:scale-95 text-white flex items-center justify-center text-xs">✕</button>
+  </div>
+  <div class="px-5 pt-4 pb-6 space-y-3 overflow-y-auto" style="max-height:75vh;">
+    <div>
+      <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Supabase Project URL</label>
+      <input id="cfgUrl" type="text" placeholder="https://xyz.supabase.co"
+             class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500/30 font-mono">
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Anon API Key (Public Key)</label>
+      <input id="cfgKey" type="text" placeholder="eyJhbGci..."
+             class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500/30">
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">User Email</label>
+      <input id="cfgEmail" type="email" placeholder="doctor@babyscan.com"
+             class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500/30">
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Password</label>
+      <input id="cfgPassword" type="password" placeholder="••••••••"
+             class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500/30">
+    </div>
+    <div id="cfgStatus" class="text-xs font-bold text-center hidden py-1"></div>
+    <div class="flex gap-2 pt-2">
+      <button onclick="saveConfig()" class="flex-1 bg-purple-700 hover:bg-purple-800 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-md transition-all">
+        💾 Save &amp; Connect
+      </button>
+      <button onclick="toggleConfig()" class="bg-slate-200 text-slate-700 px-4 py-3 rounded-xl font-bold text-xs active:scale-95">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── WhatsApp Template Modal Sheet ─────────────────────────────── -->
+<div id="templateSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl transform translate-y-full hidden max-w-xl mx-auto border-t border-slate-100">
+  <div class="bg-purple-800 rounded-t-3xl px-5 py-4 flex justify-between items-center text-white">
+    <div>
+      <div class="font-extrabold text-base tracking-tight">📋 WhatsApp Message Template</div>
+      <div class="text-purple-200 text-xs mt-0.5">Customize default report dispatch message</div>
+    </div>
+    <button onclick="closeTemplateSheet()" class="w-7 h-7 bg-purple-950/80 rounded-full font-bold active:scale-95 text-white flex items-center justify-center text-xs">✕</button>
+  </div>
+  <div class="px-5 pt-4 pb-6 overflow-y-auto space-y-3" style="max-height:75vh;">
+    <div class="text-xs text-slate-600 leading-relaxed bg-purple-50/80 border border-purple-100 rounded-2xl p-3.5">
+      <div class="font-bold text-purple-900 mb-1">Dynamic Placeholders:</div>
+      • <code class="text-purple-800 font-bold bg-purple-100/60 px-1 rounded">{name}</code> — First Name<br>
+      • <code class="text-purple-800 font-bold bg-purple-100/60 px-1 rounded">{patient_name}</code> — Full Patient Name<br>
+      • <code class="text-purple-800 font-bold bg-purple-100/60 px-1 rounded">{test_name}</code> — Test / Procedure Name<br>
+      • <code class="text-purple-800 font-bold bg-purple-100/60 px-1 rounded">{pdf_line}</code> — Report PDF Link
+    </div>
+    <textarea id="tpl_text" rows="9"
+              class="w-full border border-slate-200 rounded-2xl p-3.5 text-xs text-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50/80 leading-relaxed"></textarea>
+    <div class="flex gap-2 pt-1">
+      <button onclick="saveTemplate()" class="flex-1 bg-purple-700 hover:bg-purple-800 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-md transition-all">
+        💾 Save Template
+      </button>
+      <button onclick="resetTemplateToDefault()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-xl font-bold text-xs active:scale-95 shadow-md transition-all">
+        🔄 Reset
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Individual Report Action Sheet ─────────────────────────────── -->
+<div id="reportActionSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl transform translate-y-full hidden max-w-xl mx-auto border-t border-slate-100">
+  <div class="bg-purple-800 rounded-t-3xl px-5 py-4 flex justify-between items-center text-white">
+    <div>
+      <div id="ras_title" class="font-extrabold text-base tracking-tight">Report Action</div>
+      <div id="ras_patient" class="text-purple-200 text-xs mt-0.5 font-medium"></div>
+    </div>
+    <button onclick="closeReportActionSheet()" class="w-7 h-7 bg-purple-950/80 rounded-full font-bold active:scale-95 text-white flex items-center justify-center text-xs">✕</button>
+  </div>
+  <div class="px-5 pt-4 pb-6 space-y-3">
+    <button id="ras_wa_btn" onclick="doActionSendWA()"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-bold text-xs active:scale-95 shadow-md transition-all flex items-center justify-center gap-2">
+      <span>📱</span> <span>Send Report via WhatsApp</span>
+    </button>
+    <div class="grid grid-cols-3 gap-2 pt-1">
+      <button id="ras_await_btn" onclick="doActionToggleAwaited()"
+              class="bg-slate-600 hover:bg-slate-700 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-xs flex items-center justify-center gap-1 transition-all">
+        <span>⏳</span> <span>Awaited</span>
+      </button>
+      <button id="ras_recv_btn" onclick="doActionToggleRecv()"
+              class="bg-amber-600 hover:bg-amber-700 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-xs flex items-center justify-center gap-1 transition-all">
+        <span>🟠</span> <span>Received</span>
+      </button>
+      <button id="ras_sent_btn" onclick="doActionToggleSent()"
+              class="bg-purple-700 hover:bg-purple-800 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-xs flex items-center justify-center gap-1 transition-all">
+        <span>✅</span> <span>Sent</span>
+      </button>
+    </div>
+    <button onclick="closeReportActionSheet()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-xs active:scale-95 transition-all">
+      Cancel
+    </button>
+  </div>
+</div>
+
+<!-- ── Quick Add Test Modal Sheet ────────────────────────────────── -->
+<div id="addTestSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl transform translate-y-full hidden max-w-xl mx-auto border-t border-slate-100">
+  <div class="bg-purple-800 rounded-t-3xl px-5 py-4 flex justify-between items-center text-white">
+    <div>
+      <div class="font-extrabold text-base tracking-tight">➕ Add Test to Patient</div>
+      <div id="ats_patient" class="text-purple-200 text-xs mt-0.5 font-medium"></div>
+    </div>
+    <button onclick="closeSheet('addTestSheet')" class="w-7 h-7 bg-purple-950/80 rounded-full font-bold active:scale-95 text-white flex items-center justify-center text-xs">✕</button>
+  </div>
+  <div class="px-5 pt-4 pb-6 space-y-3 overflow-y-auto" style="max-height:75vh;">
+    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Test to Add</div>
+    <div id="ats_quick_buttons" class="flex flex-wrap gap-2"></div>
+    <div class="pt-3 border-t border-slate-100">
+      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Custom Test Name</div>
+      <div class="flex gap-2">
+        <input id="ats_custom_input" type="text" placeholder="e.g. NIPT / CMA" class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 text-xs uppercase font-semibold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500/30">
+        <button onclick="doAddCustomTest()" class="bg-purple-700 hover:bg-purple-800 text-white px-4 py-2 rounded-xl font-bold text-xs active:scale-95 transition-all shadow-sm">Add</button>
+      </div>
+    </div>
+    <button onclick="closeSheet('addTestSheet')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-xs active:scale-95 transition-all mt-2">
+      Cancel
+    </button>
+  </div>
+</div>
+
+<!-- ── Patient Detail Sheet ──────────────────────────────────────── -->
+<div id="detailSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl transform translate-y-full hidden max-w-xl mx-auto border-t border-slate-100">
+  <div class="bg-purple-800 rounded-t-3xl px-5 py-4">
+    <div class="flex justify-between items-start">
+      <div>
+        <div id="ds_name" class="text-white font-extrabold text-lg tracking-tight"></div>
+        <div id="ds_sub"  class="text-purple-200 text-xs font-medium mt-0.5"></div>
+      </div>
+      <button onclick="closeAllSheets()"
+              class="w-7 h-7 bg-purple-950/80 rounded-full flex items-center justify-center text-white font-bold active:scale-95 text-xs">✕</button>
+    </div>
+    <!-- Tests row inside Patient Detail Banner -->
+    <div id="ds_banner_tests" class="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-purple-700/60 hidden"></div>
+  </div>
+
+  <div class="px-5 py-4 overflow-y-auto space-y-4" style="max-height:75vh;">
+    <div class="space-y-2.5">
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Date</div>
+          <div id="ds_date" class="text-slate-800 font-bold text-xs mt-0.5"></div>
+        </div>
+        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Mobile</div>
+          <div id="ds_mobile" class="text-slate-800 font-bold text-xs mt-0.5"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Procedure</div>
+          <div id="ds_proc" class="text-slate-800 font-bold text-xs mt-0.5"></div>
+        </div>
+        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lab</div>
+          <div id="ds_lab" class="text-slate-800 font-bold text-xs mt-0.5"></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5">
+        <div class="bg-slate-50 border border-slate-100 rounded-2xl p-3">
+          <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lab Payment (₹)</div>
+          <div id="ds_pay" class="text-slate-800 font-bold text-xs mt-0.5"></div>
+        </div>
+        <div id="ds_doctor_wrap" class="bg-slate-50 border border-slate-100 rounded-2xl p-3 hidden">
+          <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref. Doctor</div>
+          <div id="ds_doctor" class="text-slate-800 font-bold text-xs mt-0.5"></div>
+        </div>
+      </div>
+
+      <div id="ds_comment_wrap" class="bg-slate-50 border border-slate-100 rounded-2xl p-3 hidden">
+        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Comment</div>
+        <div id="ds_comment" class="text-slate-700 text-xs mt-0.5 leading-relaxed"></div>
+      </div>
+
+      <!-- PDF Attachment Section -->
+      <div id="pdfReportSection" class="border-t border-slate-100 pt-3">
+        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Lab Report PDF</div>
+        <div id="pdfStatusBox" class="rounded-2xl p-3 bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+          <div id="pdfStatusText" class="text-xs text-slate-500 font-semibold truncate max-w-[160px]">No PDF attached</div>
+          <div class="flex gap-2">
+            <button id="viewPdfBtn" onclick="viewPDF()" class="hidden bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl active:scale-95 transition-all shadow-xs">
+              👁️ View PDF
+            </button>
+            <label class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl active:scale-95 transition-all cursor-pointer shadow-xs">
+              📄 Upload
+              <input type="file" accept="application/pdf" class="hidden" onchange="uploadReportPDF(this.files[0])">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Per-report tracking panel -->
+      <div id="ds_reports_wrap" class="hidden border-t border-slate-100 pt-3">
+        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Individual Reports Tracking</div>
+        <div id="ds_reports_list" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- Actions Footer -->
+    <div class="space-y-2 pt-2 border-t border-slate-100">
+      <button onclick="editActive()"
+              class="w-full bg-purple-700 hover:bg-purple-800 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-sm transition-all">
+        ✏️ Edit Entry
+      </button>
+      <button id="waSendBtn" onclick="sendWhatsApp()"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold text-xs active:scale-95 shadow-md shadow-emerald-600/20 transition-all">
+        📱 Send Report via WhatsApp
+      </button>
+      <button onclick="deleteActive()"
+              class="w-full bg-rose-500 hover:bg-rose-600 text-white py-2.5 rounded-xl font-bold text-xs active:scale-95 transition-all">
+        🗑 Delete Entry
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / Edit Form Sheet ─────────────────────────────────────── -->
+<div id="formSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-[60] bg-white rounded-t-3xl shadow-2xl transform translate-y-full max-w-xl mx-auto border-t border-slate-100">
+  <div class="bg-purple-800 rounded-t-3xl px-5 py-4 flex justify-between items-center">
+    <div>
+      <div id="formTitle" class="text-white font-extrabold text-base tracking-tight">Add Lab Entry</div>
+      <div class="text-purple-200 text-xs font-medium mt-0.5">Fill sample details</div>
+    </div>
+    <button onclick="closeSheet('formSheet')"
+            class="w-7 h-7 bg-purple-950/80 rounded-full flex items-center justify-center text-white font-bold active:scale-95 text-xs">✕</button>
+  </div>
+  <div class="px-5 pt-4 pb-10 overflow-y-auto" style="max-height:82vh;">
+    <div class="space-y-3.5">
+
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Date <span class="text-rose-500">*</span></label>
+        <input id="f_date" type="date"
+               class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Patient Name <span class="text-rose-500">*</span></label>
+        <input id="f_patient" type="text" placeholder="Full name" autocomplete="off"
+               class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Mobile No.</label>
+        <input id="f_mobile" type="tel" placeholder="10-digit number"
+               class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Referring Doctor</label>
+        <input id="f_doctor" type="text" placeholder="Doctor name (optional)" autocomplete="off"
+               class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+      </div>
+
+      <!-- Procedure -->
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Procedure <span class="text-rose-500">*</span></label>
+        <div class="flex gap-2">
+          <select id="f_procedure"
+                  class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+            <option value="">Select procedure</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Lab -->
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Lab <span class="text-rose-500">*</span></label>
+        <div class="flex gap-2">
+          <select id="f_lab"
+                  class="flex-1 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+            <option value="">Select lab</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Lab Payment (₹)</label>
+        <input id="f_payment" type="number" inputmode="numeric" placeholder="Amount"
+               class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50">
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Comment</label>
+        <textarea id="f_comment" rows="2" placeholder="Any notes..."
+                  class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-slate-50 resize-none"></textarea>
+      </div>
+
+      <!-- Reports expected -->
+      <div>
+        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Reports Expected</label>
+        <div id="reportCheckboxes" class="grid grid-cols-2 gap-2"></div>
+        <div class="mt-2 flex gap-2">
+          <button onclick="toggleAddReport()"
+                  class="flex-1 border border-dashed border-purple-300 text-purple-700 text-xs font-bold
+                         py-2 rounded-xl active:bg-purple-50 transition-all">
+            + Add Report Type
+          </button>
+        </div>
+        <div id="addReportRow" class="hidden mt-2 flex gap-2">
+          <input id="newReportInput" type="text" placeholder="e.g. CMA"
+                 class="flex-1 border border-purple-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800
+                        focus:outline-none focus:ring-2 focus:ring-purple-500/30 bg-purple-50/50 uppercase">
+          <button onclick="saveNewReport()"
+                  class="bg-purple-700 text-white px-4 py-2 rounded-xl font-bold text-xs active:scale-95 shadow-sm">
+            Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Report status (edit mode only) -->
+      <div id="reportFields" class="hidden space-y-3 border-t border-slate-100 pt-3">
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Overall Report Status</div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Report Received Date</label>
+          <input id="f_received" type="date"
+                 class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-slate-50">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Report Sent to Patient</label>
+          <input id="f_sent" type="date"
+                 class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 bg-slate-50">
+        </div>
+      </div>
+
+      <div id="formStatus" class="hidden rounded-xl px-4 py-3 text-xs font-semibold text-center"></div>
+
+      <div class="flex gap-2.5 pt-2">
+        <button id="saveBtn" onclick="saveEntry()"
+                class="flex-1 bg-purple-700 hover:bg-purple-800 text-white py-3.5 rounded-2xl font-bold text-xs active:scale-95 shadow-md shadow-purple-700/20 transition-all">
+          💾 Save Entry
+        </button>
+        <button onclick="closeSheet('formSheet')"
+                class="bg-slate-200 text-slate-700 px-5 py-3.5 rounded-2xl font-bold text-xs active:scale-95">
+          Cancel
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     Core JavaScript Logic
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Supabase Config ───────────────────────────────────────────────
+const DEFAULT_URL = localStorage.getItem('sb_url') || 'https://frtfzjchlaraywdmlhdb.supabase.co';
+const DEFAULT_KEY = localStorage.getItem('sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZydGZ6amNobGFyYXl3ZG1saGRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MTI4ODgsImV4cCI6MjEwNDI4ODg4OH0.gdD62zBhe8jSUSGXapq1tLd84S6OAXMgqJUji-_RFw4';
+let currentAuthToken = localStorage.getItem('sb_token') || '';
+
+function toggleConfig() {
+  const pnl = document.getElementById('configPanel');
+  if (!pnl) return;
+  const isHidden = pnl.classList.contains('hidden') || pnl.style.transform === 'translateY(100%)' || pnl.style.transform === '';
+  if (isHidden) {
+    document.getElementById('cfgUrl').value = localStorage.getItem('sb_url') || DEFAULT_URL;
+    document.getElementById('cfgKey').value = localStorage.getItem('sb_key') || DEFAULT_KEY;
+    document.getElementById('cfgEmail').value = localStorage.getItem('sb_email') || '';
+    document.getElementById('cfgPassword').value = localStorage.getItem('sb_pwd') || '';
+    openSheet('configPanel');
+  } else {
+    closeAllSheets();
+  }
+}
+
+async function doSupabaseLoginSilently() {
+  const url = localStorage.getItem('sb_url') || DEFAULT_URL;
+  const key = localStorage.getItem('sb_key') || DEFAULT_KEY;
+  const em = localStorage.getItem('sb_email');
+  const pwd = localStorage.getItem('sb_pwd');
+  if (!url || !key || !em || !pwd) return false;
+
+  try {
+    const res = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'apikey': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: em, password: pwd })
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    currentAuthToken = data.access_token;
+    localStorage.setItem('sb_token', data.access_token);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function saveConfig() {
+  const url = document.getElementById('cfgUrl').value.trim();
+  const key = document.getElementById('cfgKey').value.trim();
+  const em = document.getElementById('cfgEmail').value.trim();
+  const pwd = document.getElementById('cfgPassword').value;
+
+  if (!url || !key) {
+    showToast('Please enter URL and Anon Key', 'bg-rose-500');
+    return;
+  }
+
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  localStorage.setItem('sb_email', em);
+  localStorage.setItem('sb_pwd', pwd);
+
+  if (em && pwd) {
+    const ok = await doSupabaseLoginSilently();
+    if (ok) {
+      toggleConfig();
+      showToast('Connected to Supabase!', 'bg-emerald-600');
+      setTimeout(() => loadData(), 500);
+    } else {
+      showToast('Login failed. Check credentials.', 'bg-rose-500');
+    }
+  } else {
+    toggleConfig();
+    showToast('Supabase settings saved!', 'bg-emerald-600');
+    setTimeout(() => loadData(), 500);
+  }
+}
+
+async function sbFetch(path, opts = {}) {
+  const url = `${DEFAULT_URL}/rest/v1/${path}`;
+  const headers = {
+    'apikey': DEFAULT_KEY,
+    'Authorization': `Bearer ${currentAuthToken || DEFAULT_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
+  };
+  const res = await fetch(url, { ...opts, headers });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt);
+  }
+  if (res.status === 204) return null;
+  return await res.json();
+}
+
+// ── Constants & State ─────────────────────────────────────────────
+const BASE_PROCS   = ['Amniocentesis','CVS','Cordocentesis','POC'];
+const BASE_LABS    = ['Supratech','SN Gene','Unipath'];
+const BASE_REPORTS = ['MLPA','QFPCR','FISH','MICROARRAY','KARYOTYPE','WES','TORCH','PCR','NIPT','CMA'];
+
+const PROCEDURES_AND_NON_TESTS = new Set([
+  'AMNIOCENTESIS', 'CVS', 'CORDOCENTESIS', 'POC',
+  'NT SCAN', 'ANOMALY SCAN', 'ANOMALY', 'DOPPLER', 'LEVEL 2', 'LEVEL II', 'SONOGRAPHY', 'CONSULTING', 'CONSULTATION',
+  'SUPRATECH', 'UNIPATH', 'SN GENE',
+  'CASH', 'ONLINE', 'UPI', 'CARD', 'YES', 'NO', 'PAID', 'DUE', 'PENDING', 'ROUTINE', 'SCAN', 'WEIGHT', 'STATUS', 'COMPLETED', 'NOTES', 'PREG'
+]);
+
+let records         = [];
+let paymentsRecords = [];
+let activeId        = null;
+let customProcs     = JSON.parse(localStorage.getItem('bs_lab_custom_procs')   || '[]');
+let customLabs      = JSON.parse(localStorage.getItem('bs_lab_custom_labs')    || '[]');
+let customReports   = JSON.parse(localStorage.getItem('bs_lab_custom_reports') || '[]');
+let removedReports  = JSON.parse(localStorage.getItem('bs_lab_removed_reports')|| '[]');
+let waTemplate      = localStorage.getItem('bs_lab_wa_template') || '';
+let currentYearMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+
+function getMonthDateRange(ym) {
+  if (!ym) ym = new Date().toISOString().slice(0, 7);
+  const parts = ym.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const firstDay = `${y}-${String(m).padStart(2, '0')}-01`;
+  const lastDayNum = new Date(y, m, 0).getDate();
+  const lastDay = `${y}-${String(m).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`;
+  return { firstDay, lastDay };
+}
+
+function changeMonth(delta) {
+  const parts = currentYearMonth.split('-');
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = new Date(y, m - 1 + delta, 1);
+  const ny = d.getFullYear();
+  const nm = String(d.getMonth() + 1).padStart(2, '0');
+  currentYearMonth = `${ny}-${nm}`;
+  const el = document.getElementById('monthPicker');
+  if (el) el.value = currentYearMonth;
+  manualRefresh();
+}
+
+function onMonthPickerChange(val) {
+  if (!val) return;
+  currentYearMonth = val;
+  manualRefresh();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  buildDropdowns();
+  if (localStorage.getItem('sb_email') && localStorage.getItem('sb_pwd') && !currentAuthToken) {
+    doSupabaseLoginSilently().then(() => loadData());
+  } else {
+    loadData();
+  }
+});
+
+// ── Dropdown builders ─────────────────────────────────────────────
+function buildDropdowns() {
+  const allProcs = [...BASE_PROCS, ...customProcs];
+  const allLabs  = [...BASE_LABS,  ...customLabs];
+
+  const fProc   = document.getElementById('filterProc');
+  const frmProc = document.getElementById('f_procedure');
+  fProc.innerHTML   = '<option value="">All Procedures</option>';
+  frmProc.innerHTML = '<option value="">Select procedure</option>';
+  allProcs.forEach(p => {
+    fProc.insertAdjacentHTML('beforeend',   `<option>${p}</option>`);
+    frmProc.insertAdjacentHTML('beforeend', `<option>${p}</option>`);
+  });
+
+  const frmLab = document.getElementById('f_lab');
+  frmLab.innerHTML = '<option value="">Select lab</option>';
+  allLabs.forEach(l => frmLab.insertAdjacentHTML('beforeend', `<option>${l}</option>`));
+}
+
+function buildReportCheckboxes(selected = []) {
+  const selectedUpper = selected.map(s => String(s || '').trim().toUpperCase());
+  const allReports = [...new Set([...BASE_REPORTS, ...customReports, ...selected])]
+    .map(r => String(r || '').trim())
+    .filter(r => r && !removedReports.includes(r.toUpperCase()));
+
+  const wrap = document.getElementById('reportCheckboxes');
+  wrap.innerHTML = allReports.map(r => {
+    const checked = selectedUpper.includes(r.toUpperCase()) ? 'checked' : '';
+    return `
+    <div class="flex items-center justify-between gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 transition-colors">
+      <label class="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
+        <input type="checkbox" value="${r}" ${checked}
+               class="w-4 h-4 accent-purple-600 rounded flex-shrink-0">
+        <span class="text-xs font-bold text-slate-700 truncate">${r}</span>
+      </label>
+      <button type="button" onclick="removeReportType(event, '${r.replace(/'/g, "\\'")}')" title="Remove report type"
+              class="text-xs font-bold text-slate-400 hover:text-rose-600 px-1.5 py-0.5 rounded hover:bg-rose-50 transition-colors flex-shrink-0">
+        ✕
+      </button>
+    </div>`;
+  }).join('');
+}
+
+async function savePresetSettings() {
+  localStorage.setItem('bs_lab_custom_procs',   JSON.stringify(customProcs));
+  localStorage.setItem('bs_lab_custom_labs',    JSON.stringify(customLabs));
+  localStorage.setItem('bs_lab_custom_reports', JSON.stringify(customReports));
+  localStorage.setItem('bs_lab_removed_reports',JSON.stringify(removedReports));
+  if (waTemplate) localStorage.setItem('bs_lab_wa_template', waTemplate);
+
+  const payload = {
+    patient_name: '__LAB_PRESETS__',
+    comments: JSON.stringify({ customProcs, customLabs, customReports, removedReports, waTemplate }),
+    date: todayISO()
+  };
+
+  try {
+    const existing = await sbFetch('lab_register?patient_name=eq.__LAB_PRESETS__');
+    if (existing && existing.length > 0) {
+      await sbFetch(`lab_register?id=eq.${existing[0].id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+    } else {
+      await sbFetch('lab_register', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+    }
+  } catch(e) {
+    console.warn('Preset sync error:', e);
+  }
+}
+
+function removeReportType(evt, reportName) {
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
+  const upper = String(reportName || '').trim().toUpperCase();
+  if (!upper) return;
+
+  customReports = customReports.filter(r => String(r || '').trim().toUpperCase() !== upper);
+
+  if (!removedReports.includes(upper)) {
+    removedReports.push(upper);
+  }
+
+  savePresetSettings();
+
+  const checked = getCheckedReports().filter(r => String(r || '').trim().toUpperCase() !== upper);
+  buildReportCheckboxes(checked);
+}
+
+function getCheckedReports() {
+  return [...document.querySelectorAll('#reportCheckboxes input:checked')].map(c => c.value);
+}
+
+// ── Custom Procedure & Lab & Report Adding ─────────────────────────
+function toggleAddProc() {
+  const row = document.getElementById('addProcRow');
+  if (row) {
+    row.classList.toggle('hidden');
+    if (!row.classList.contains('hidden')) document.getElementById('newProcInput').focus();
+  }
+}
+function saveNewProc() {
+  const val = document.getElementById('newProcInput').value.trim();
+  if (!val) return;
+  if (![...BASE_PROCS, ...customProcs].includes(val)) {
+    customProcs.push(val);
+    savePresetSettings();
+  }
+  buildDropdowns();
+  document.getElementById('f_procedure').value = val;
+  document.getElementById('newProcInput').value = '';
+  if (document.getElementById('addProcRow')) document.getElementById('addProcRow').classList.add('hidden');
+}
+
+function toggleAddLab() {
+  const row = document.getElementById('addLabRow');
+  if (row) {
+    row.classList.toggle('hidden');
+    if (!row.classList.contains('hidden')) document.getElementById('newLabInput').focus();
+  }
+}
+function saveNewLab() {
+  const val = document.getElementById('newLabInput').value.trim();
+  if (!val) return;
+  if (![...BASE_LABS, ...customLabs].includes(val)) {
+    customLabs.push(val);
+    savePresetSettings();
+  }
+  buildDropdowns();
+  document.getElementById('f_lab').value = val;
+  document.getElementById('newLabInput').value = '';
+  if (document.getElementById('addLabRow')) document.getElementById('addLabRow').classList.add('hidden');
+}
+
+function toggleAddReport() {
+  const row = document.getElementById('addReportRow');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('newReportInput').focus();
+}
+function saveNewReport() {
+  const val = document.getElementById('newReportInput').value.trim().toUpperCase();
+  if (!val) return;
+  if (removedReports.includes(val)) {
+    removedReports = removedReports.filter(r => r.toUpperCase() !== val);
+  }
+  const baseUpper = BASE_REPORTS.map(x => x.toUpperCase());
+  const customUpper = customReports.map(x => x.toUpperCase());
+  if (!baseUpper.includes(val) && !customUpper.includes(val)) {
+    customReports.push(val);
+  }
+  savePresetSettings();
+  const checked = getCheckedReports();
+  buildReportCheckboxes([...checked, val]);
+  document.getElementById('newReportInput').value = '';
+  document.getElementById('addReportRow').classList.add('hidden');
+}
+
+// ── Report Parser & Extractor ──────────────────────────────────────
+function safeParseReports(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map(item => {
+      if (typeof item === 'string') return { name: item.trim(), received: '', sent: '' };
+      if (item && typeof item === 'object') return { name: item.name || '', received: item.received || '', sent: item.sent || '' };
+      return { name: String(item), received: '', sent: '' };
+    }).filter(x => x.name);
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return safeParseReports(parsed);
+      } catch (e) {}
+    }
+    return trimmed.split(',').filter(Boolean).map(part => {
+      if (part.includes(':')) {
+        const [name, sent] = part.split(':');
+        return { name: name.trim(), received: '', sent: (sent || '').trim() };
+      }
+      return { name: part.trim(), received: '', sent: '' };
+    }).filter(x => x.name);
+  }
+  return [];
+}
+
+function cleanName(str) {
+  if (!str) return '';
+  return String(str)
+    .toUpperCase()
+    .replace(/^(MRS|MR|MS|SMT|DR|BABY OF|B\/O)\.?\s+/i, '')
+    .replace(/[^A-Z0-9]/g, '')
+    .trim();
+}
+
+function cleanTestToken(rawToken) {
+  if (!rawToken || typeof rawToken !== 'string') return '';
+  // Remove parenthesized prices/amounts like (25000), (₹25000), (27000.0)
+  let clean = rawToken.replace(/\s*\([\d.₹\s]+\)/g, '').trim();
+  // Remove quotation marks, braces, brackets, colons
+  clean = clean.replace(/["'{}\\]/g, '').trim();
+  if (clean.includes(':')) return '';
+  return clean;
+}
+
+function extractTestsFromPaymentRecord(match) {
+  if (!match) return [];
+  const extracted = [];
+
+  // Dedicated test fields from desktop app payment entry
+  const testFields = [
+    match.tests_requested,
+    match.tests,
+    match.reports,
+    match.test_name,
+    match.particulars,
+    match.lab_test
+  ];
+
+  testFields.forEach(rawVal => {
+    if (!rawVal) return;
+    let strVal = typeof rawVal === 'object' ? '' : String(rawVal).trim();
+    if (!strVal || strVal.startsWith('{') || strVal.startsWith('[')) return;
+
+    const parts = strVal.split(/[,+/\n&;]+/);
+    parts.forEach(part => {
+      const token = cleanTestToken(part);
+      if (token && token.length >= 2 && token.length <= 30) {
+        const upperToken = token.toUpperCase();
+        if (!PROCEDURES_AND_NON_TESTS.has(upperToken) && !extracted.includes(token)) {
+          extracted.push(token);
+        }
+      }
+    });
+  });
+
+  return extracted;
+}
+
+function getReportsForRecord(r, paymentsList = paymentsRecords) {
+  if (!r) return [];
+  if (r._cachedReports) return r._cachedReports;
+
+  // Step 1: Extrapolate tests directly from Desktop App Payment Section
+  if (paymentsList && paymentsList.length > 0) {
+    const pName = cleanName(r.patient);
+    const pMob  = cleanMobile(r.mobile);
+    const pId   = String(r.payment_id || r.id || '');
+
+    const matchingPayments = paymentsList.filter(p => {
+      if (pId && (String(p.id) === pId || String(p.payment_id) === pId)) return true;
+
+      const pmMob = cleanMobile(p.mobile || p.patient_phone || p.phone || p.mobile_no || p.contact);
+      if (pMob && pmMob && pMob === pmMob) return true;
+
+      const pmName = cleanName(p.patient_name || p.patient || p.name);
+      if (pName && pmName) {
+        if (pName === pmName) return true;
+        if (pName.length > 3 && pmName.length > 3) {
+          if (pName.includes(pmName) || pmName.includes(pName)) return true;
+        }
+      }
+      return false;
+    });
+
+    const payExtracted = [];
+    matchingPayments.forEach(match => {
+      const tests = extractTestsFromPaymentRecord(match);
+      tests.forEach(t => { if (!payExtracted.includes(t)) payExtracted.push(t); });
+    });
+
+    if (payExtracted.length > 0) {
+      const existingSaved = safeParseReports(r.reports || r.reports_expected || r.tests || r.test_name || r.report_name || r.tests_requested);
+      return payExtracted.map(name => {
+        const prev = existingSaved.find(x => x.name.toUpperCase() === name.toUpperCase());
+        return {
+          name,
+          received: prev ? (prev.received || '') : (r.reportReceived || ''),
+          sent: prev ? (prev.sent || '') : (r.reportSent || '')
+        };
+      });
+    }
+  }
+
+  // Step 2: Check tests_requested or reports on lab_register record
+  const existingSaved = safeParseReports(r.reports || r.tests_requested || r.reports_expected || r.tests);
+  if (existingSaved && existingSaved.length > 0) {
+    const validSaved = existingSaved.filter(rp => {
+      const uName = (rp.name || '').toUpperCase();
+      return uName && !PROCEDURES_AND_NON_TESTS.has(uName) && !uName.includes(':') && !uName.includes('{');
+    });
+    if (validSaved.length > 0) { r._cachedReports = validSaved; return validSaved; }
+  }
+
+  r._cachedReports = [];
+  return [];
+}
+
+// ── Load Data from Live Supabase Database ─────────────────────────
+async function loadData() {
+  document.getElementById('loadingRow').classList.remove('hidden');
+  document.getElementById('cardsWrap').innerHTML = '';
+  document.getElementById('emptyState').classList.add('hidden');
+
+  const elMonth = document.getElementById('monthPicker');
+  if (elMonth) elMonth.value = currentYearMonth;
+
+  const { firstDay, lastDay } = getMonthDateRange(currentYearMonth);
+
+  try {
+    const [labData, payData] = await Promise.all([
+      sbFetch(`lab_register?or=(patient_name.eq.__LAB_PRESETS__,and(date.gte.${firstDay},date.lte.${lastDay}))&order=id.desc`).catch(() => sbFetch('lab_register?order=id.desc&limit=1000')),
+      sbFetch(`payments?date=gte.${firstDay}&date=lte.${lastDay}&order=id.desc`).catch(() => sbFetch('payments?order=id.desc&limit=1000').catch(() => []))
+    ]);
+
+    paymentsRecords = (payData || []).map(p => ({
+      ...p,
+      _cleanName: cleanName(p.patient_name || p.patient || p.name),
+      _cleanMob: cleanMobile(p.mobile || p.patient_phone || p.phone || p.mobile_no || p.contact),
+      _extractedTests: extractTestsFromPaymentRecord(p)
+    }));
+
+    const presetRow = (labData || []).find(r => r.patient_name === '__LAB_PRESETS__');
+    if (presetRow && presetRow.comments) {
+      try {
+        const presets = JSON.parse(presetRow.comments);
+        if (Array.isArray(presets.customProcs))   { customProcs = presets.customProcs; localStorage.setItem('bs_lab_custom_procs', JSON.stringify(customProcs)); }
+        if (Array.isArray(presets.customLabs))    { customLabs  = presets.customLabs;  localStorage.setItem('bs_lab_custom_labs',  JSON.stringify(customLabs)); }
+        if (Array.isArray(presets.customReports)) { customReports = presets.customReports; localStorage.setItem('bs_lab_custom_reports', JSON.stringify(customReports)); }
+        if (Array.isArray(presets.removedReports)) { removedReports = presets.removedReports; localStorage.setItem('bs_lab_removed_reports', JSON.stringify(removedReports)); }
+        if (presets.waTemplate) { waTemplate = presets.waTemplate; localStorage.setItem('bs_lab_wa_template', waTemplate); }
+      } catch(e) {}
+    }
+
+    records = (labData || [])
+      .filter(r => r.patient_name !== '__LAB_PRESETS__')
+      .filter(r => !r.date || r.date.startsWith(currentYearMonth))
+      .map(r => ({
+        id: String(r.id),
+        payment_id: r.payment_id ? String(r.payment_id) : '',
+        date: r.date || r.appointment_date || '',
+        patient: r.patient_name || '',
+        mobile: r.mobile || r.patient_phone || '',
+        doctor: r.doctor || r.referring_doctor || '',
+        procedure: r.procedure || '',
+        lab: r.lab_name || r.lab || '',
+        payment: r.payment_amount || r.payment || '', // Strictly lab payment amount
+        comment: r.comments || r.comment || '',
+        reportReceived: r.report_received_date || r.report_received || '',
+        reportSent: r.report_sent_date || r.report_sent || '',
+        status: r.status || (r.report_sent_date || r.report_sent ? 'Delivered' : (r.report_received_date || r.report_received ? 'Report Received' : 'Pending')),
+        pdfUrl: r.report_pdf_url || '',
+        reports: safeParseReports(r.tests_requested || r.reports)
+      }));
+
+    buildDropdowns();
+    updateStats();
+    renderCards();
+    document.getElementById('loadingRow').classList.add('hidden');
+  } catch (err) {
+    document.getElementById('loadingRow').classList.add('hidden');
+    showToast('Failed to load records: ' + err.message, 'bg-rose-500');
+  }
+}
+
+async function manualRefresh() {
+  const hIcon = document.getElementById('hdrRefreshIcon');
+  const qIcon = document.getElementById('qaRefreshIcon');
+  if (hIcon) hIcon.classList.add('spinner');
+  if (qIcon) qIcon.classList.add('spinner');
+
+  try {
+    await loadData();
+    showToast('🔄 Register refreshed from Supabase!', 'bg-purple-700');
+  } catch (err) {
+    showToast('Refresh failed: ' + err.message, 'bg-rose-500');
+  } finally {
+    if (hIcon) hIcon.classList.remove('spinner');
+    if (qIcon) qIcon.classList.remove('spinner');
+  }
+}
+
+// ── Database Operations ───────────────────────────────────────────
+async function appendRow(entry) {
+  const row = {
+    date: entry.date,
+    patient_name: entry.patient,
+    mobile: entry.mobile,
+    doctor: entry.doctor,
+    procedure: entry.procedure,
+    lab_name: entry.lab,
+    payment_amount: entry.payment ? parseFloat(entry.payment) : null, // Strictly lab payment amount
+    comments: entry.comment,
+    tests_requested: (entry.reports && entry.reports.length > 0) ? JSON.stringify(entry.reports) : (entry.tests_requested || ''),
+    report_received_date: entry.reportReceived || null,
+    report_sent_date: entry.reportSent || null,
+    status: entry.status || (entry.reportSent ? 'Delivered' : (entry.reportReceived ? 'Report Received' : 'Pending')),
+    report_pdf_url: entry.pdfUrl || null
+  };
+  const data = await sbFetch('lab_register', {
+    method: 'POST',
+    body: JSON.stringify(row)
+  });
+  if (data && data.length > 0) {
+    entry.id = data[0].id;
+  }
+}
+
+async function updateRow(entry) {
+  const row = {
+    date: entry.date,
+    patient_name: entry.patient,
+    mobile: entry.mobile,
+    doctor: entry.doctor,
+    procedure: entry.procedure,
+    lab_name: entry.lab,
+    payment_amount: entry.payment ? parseFloat(entry.payment) : null,
+    comments: entry.comment,
+    tests_requested: (entry.reports && entry.reports.length > 0) ? JSON.stringify(entry.reports) : (entry.tests_requested || ''),
+    report_received_date: entry.reportReceived || null,
+    report_sent_date: entry.reportSent || null,
+    status: entry.status || (entry.reportSent ? 'Delivered' : (entry.reportReceived ? 'Report Received' : 'Pending')),
+    report_pdf_url: entry.pdfUrl || null
+  };
+  await sbFetch(`lab_register?id=eq.${entry.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(row)
+  });
+}
+
+async function deleteRow(entryId) {
+  await sbFetch(`lab_register?id=eq.${entryId}`, { method: 'DELETE' });
+}
+
+// ── Stats ─────────────────────────────────────────────────────────
+function updateStats() {
+  const total  = records.length;
+  const amnio  = records.filter(r => r.procedure === 'Amniocentesis').length;
+  const other  = records.filter(r => ['CVS','POC','Cordocentesis'].includes(r.procedure)).length;
+  const action = records.filter(r => (r.reportReceived || r.pdfUrl) && !r.reportSent).length;
+  if (document.getElementById('statTotal'))  document.getElementById('statTotal').textContent  = total;
+  if (document.getElementById('statAmnio'))  document.getElementById('statAmnio').textContent  = amnio;
+  if (document.getElementById('statOther'))  document.getElementById('statOther').textContent  = other;
+  if (document.getElementById('statAction')) document.getElementById('statAction').textContent = action;
+  if (document.getElementById('pulseDot'))   document.getElementById('pulseDot').classList.toggle('hidden', action === 0);
+}
+
+// ── Formatters ────────────────────────────────────────────────────
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const parts = iso.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${+d} ${mn[+m-1]} ${y}`;
+  }
+  return iso;
+}
+function todayISO() { return new Date().toISOString().slice(0,10); }
+function cleanMobile(s) { return String(s||'').split('/')[0].replace(/\D/g,'').trim(); }
+
+function procColor(p) {
+  if (p === 'Amniocentesis') return 'bg-teal-50 text-teal-700 border-teal-200';
+  if (p === 'CVS')           return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+  if (p === 'Cordocentesis') return 'bg-pink-50 text-pink-700 border-pink-200';
+  if (p === 'POC')           return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-slate-100 text-slate-600 border-slate-200';
+}
+
+function statusBadge(r) {
+  const reps = getReportsForRecord(r);
+  if (reps && reps.length > 0) {
+    const allSent = reps.every(rp => !!rp.sent);
+    if (allSent) {
+      return '<span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200/80">✅ Delivered</span>';
+    }
+    return '<span class="badge bg-amber-50 text-amber-700 border border-amber-200/80">⏳ Pending</span>';
+  }
+
+  if (r.reportSent && r.status === 'Delivered') {
+    return '<span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200/80">✅ Delivered</span>';
+  }
+  return '<span class="badge bg-amber-50 text-amber-700 border border-amber-200/80">⏳ Pending</span>';
+}
+
+let _searchDebounceTimer = null;
+function onSearchInput() {
+  clearTimeout(_searchDebounceTimer);
+  _searchDebounceTimer = setTimeout(renderCards, 120);
+}
+
+// ── Render Card List ──────────────────────────────────────────────
+function renderCards() {
+  const q     = (document.getElementById('searchInput').value || '').toLowerCase();
+  const fProc = document.getElementById('filterProc').value;
+  const fStat = document.getElementById('filterStatus').value;
+
+  let list = records.filter(r => {
+    if (q && !r.patient.toLowerCase().includes(q)) return false;
+    if (fProc && r.procedure !== fProc) return false;
+
+    const reps = getReportsForRecord(r);
+    const hasReps = reps && reps.length > 0;
+    const isDone = hasReps ? reps.every(x => !!x.sent) : (!!r.reportSent && r.status === 'Delivered');
+
+    if (fStat === 'awaiting' || fStat === 'action') return !isDone;
+    if (fStat === 'done') return isDone;
+    return true;
+  });
+
+  list.sort((a, b) => {
+    const aReps = getReportsForRecord(a);
+    const bReps = getReportsForRecord(b);
+    const aDone = aReps && aReps.length > 0 ? aReps.every(x => !!x.sent) : (!!a.reportSent && a.status === 'Delivered');
+    const bDone = bReps && bReps.length > 0 ? bReps.every(x => !!x.sent) : (!!b.reportSent && b.status === 'Delivered');
+
+    const ap = aDone ? 0 : 1;
+    const bp = bDone ? 0 : 1;
+    if (ap !== bp) return bp - ap;
+    return (b.date || '').localeCompare(a.date || '');
+  });
+
+  const wrap  = document.getElementById('cardsWrap');
+  const empty = document.getElementById('emptyState');
+
+  if (list.length === 0) {
+    wrap.innerHTML = '';
+    showEmpty(records.length === 0
+      ? 'No lab entries yet. Entries populate when "Lab Payment = Yes" in payment section.'
+      : 'No records match your filters.');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  wrap.innerHTML = list.map(r => {
+    const isAction = r.reportReceived && !r.reportSent;
+    const borderCls = isAction
+      ? 'bg-amber-50/50 border-l-4 border-l-amber-500 border-y border-r border-amber-200/60 shadow-xs'
+      : 'bg-white border border-slate-200/80 shadow-xs hover:border-slate-300';
+
+    const reps = getReportsForRecord(r);
+
+    return `
+    <div class="card-item rounded-2xl px-4 py-3.5 cursor-pointer ${borderCls} fade-in-up"
+         onclick="openDetail('${r.id}')">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="font-extrabold text-slate-800 text-sm tracking-tight truncate">${r.patient}</div>
+          <div class="text-[11px] font-medium text-slate-400 mt-0.5">${fmtDate(r.date)} · ${r.lab || '—'}</div>
+        </div>
+        <div class="flex-shrink-0">${statusBadge(r)}</div>
+      </div>
+
+      <!-- Procedure + Tests -->
+      <div class="flex items-center flex-wrap gap-1.5 mt-2.5">
+        <span class="badge ${procColor(r.procedure)} border">${r.procedure || '—'}</span>
+        ${reps.map(rp => {
+          let badgeStyle = 'bg-slate-100 text-slate-600 border border-slate-200/80';
+          let icon = '⏳';
+          if (rp.sent) {
+            badgeStyle = 'bg-emerald-50 text-emerald-800 border border-emerald-300/80 font-bold';
+            icon = '✅';
+          } else if (rp.received) {
+            badgeStyle = 'bg-amber-50 text-amber-800 border border-amber-300/80 font-bold';
+            icon = '🟠';
+          }
+          return `
+            <button onclick="openReportActionModal(event, '${r.id}', '${rp.name}')"
+                    class="text-[11px] px-2 py-0.5 rounded-lg flex items-center gap-1 active:scale-95 transition-all ${badgeStyle}">
+              <span>${icon}</span><span>${rp.name}</span>
+            </button>`;
+        }).join('')}
+        ${r.payment ? `<span class="text-xs font-bold text-slate-500 ml-auto">₹${r.payment}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showEmpty(msg) {
+  document.getElementById('emptyMsg').textContent = msg;
+  document.getElementById('emptyState').classList.remove('hidden');
+}
+
+// ── Detail Sheet ──────────────────────────────────────────────────
+function openDetail(id) {
+  const r = records.find(x => String(x.id) === String(id));
+  if (!r) return;
+  activeId = String(id);
+
+  const repList = getReportsForRecord(r);
+
+  document.getElementById('ds_name').textContent   = r.patient;
+  document.getElementById('ds_sub').textContent    = `${r.procedure} · ${fmtDate(r.date)}`;
+  document.getElementById('ds_date').textContent   = fmtDate(r.date);
+  document.getElementById('ds_mobile').textContent = r.mobile || '—';
+  document.getElementById('ds_proc').textContent   = r.procedure || '—';
+  document.getElementById('ds_lab').textContent    = r.lab || '—';
+  document.getElementById('ds_pay').textContent    = r.payment ? `₹${r.payment}` : '—';
+
+  // Banner Tests
+  const bannerTests = document.getElementById('ds_banner_tests');
+  bannerTests.classList.remove('hidden');
+  bannerTests.innerHTML = `
+    ${repList.map(rp => {
+      let badgeStyle = 'bg-purple-900/80 text-purple-100 border border-purple-600/60';
+      let icon = '⏳';
+      let stTxt = 'Awaited';
+      if (rp.sent) {
+        badgeStyle = 'bg-emerald-600 text-white font-bold border border-emerald-400';
+        icon = '✅';
+        stTxt = 'Sent';
+      } else if (rp.received) {
+        badgeStyle = 'bg-amber-600 text-white font-bold border border-amber-400';
+        icon = '🟠';
+        stTxt = 'Recv';
+      }
+      return `
+        <button onclick="openReportActionModal(event, '${r.id}', '${rp.name}')"
+                class="text-[11px] px-2.5 py-1 rounded-xl flex items-center gap-1 active:scale-95 transition-all shadow-xs ${badgeStyle}">
+          <span>${icon}</span><span>${rp.name}</span> <span class="text-[10px] opacity-80">(${stTxt})</span>
+        </button>`;
+    }).join('')}`;
+
+  document.getElementById('ds_doctor_wrap').classList.toggle('hidden', !r.doctor);
+  document.getElementById('ds_doctor').textContent  = r.doctor;
+  document.getElementById('ds_comment_wrap').classList.toggle('hidden', !r.comment);
+  document.getElementById('ds_comment').textContent = r.comment;
+
+
+
+  const waBtn = document.getElementById('waSendBtn');
+  if (waBtn) {
+    waBtn.textContent = r.reportSent ? '📱 Resend via WhatsApp' : '📱 Send Report via WhatsApp';
+    waBtn.style.display = r.mobile ? 'block' : 'none';
+  }
+
+  // PDF report status & view button
+  const viewBtn = document.getElementById('viewPdfBtn');
+  const pdfTxt  = document.getElementById('pdfStatusText');
+  if (r.pdfUrl) {
+    viewBtn.classList.remove('hidden');
+    pdfTxt.textContent = '📄 Report PDF attached';
+    pdfTxt.className = 'text-xs text-teal-700 font-bold truncate max-w-[160px]';
+  } else {
+    viewBtn.classList.add('hidden');
+    pdfTxt.textContent = 'No PDF attached';
+    pdfTxt.className = 'text-xs text-slate-500 font-semibold truncate max-w-[160px]';
+  }
+
+  // Per-report tracking panel inside Detail Sheet
+  const rWrap = document.getElementById('ds_reports_wrap');
+  const rList = document.getElementById('ds_reports_list');
+  if (repList && repList.length) {
+    rWrap.classList.remove('hidden');
+    rList.innerHTML = repList.map(rp => {
+      let icon = '⏳';
+      let statusTxt = 'Awaited';
+      let badgeCls = 'text-slate-500 bg-slate-100 border border-slate-200';
+
+      if (rp.sent) {
+        icon = '✅';
+        statusTxt = `Sent ${fmtDate(rp.sent)}`;
+        badgeCls = 'text-emerald-800 bg-emerald-100 border border-emerald-300 font-bold';
+      } else if (rp.received) {
+        icon = '🟠';
+        statusTxt = `Received ${fmtDate(rp.received)}`;
+        badgeCls = 'text-amber-800 bg-amber-100 border border-amber-300 font-bold';
+      }
+
+      const isWait = !rp.received && !rp.sent;
+      const isRecv = rp.received && !rp.sent;
+      const isSent = !!rp.sent;
+
+      return `
+      <div class="flex items-center justify-between gap-2 bg-slate-50/80 rounded-2xl px-3.5 py-3 border border-slate-200/80">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="text-base flex-shrink-0">${icon}</span>
+          <div class="min-w-0">
+            <div class="font-bold text-xs text-slate-800 truncate">${rp.name}</div>
+            <div class="text-[10px] ${badgeCls} px-2 py-0.5 rounded-full inline-block mt-0.5">${statusTxt}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <select onchange="toggleReportStatus('${r.id}', '${rp.name}', this.value)"
+                  class="text-xs font-bold border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/30 shadow-xs cursor-pointer">
+            <option value="awaited" ${isWait ? 'selected' : ''}>⏳ Awaited</option>
+            <option value="received" ${isRecv ? 'selected' : ''}>🟠 Received</option>
+            <option value="sent" ${isSent ? 'selected' : ''}>✅ Sent</option>
+          </select>
+          <button onclick="sendSingleReport('${rp.name}')"
+                  title="Send via WhatsApp"
+                  class="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl active:scale-95 transition-all shadow-xs flex items-center gap-1">
+            📱 WA
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    rWrap.classList.add('hidden');
+  }
+
+  openSheet('detailSheet');
+}
+
+function viewPDF() {
+  const r = records.find(x => x.id === activeId);
+  if (r && r.pdfUrl) {
+    window.open(r.pdfUrl, '_blank');
+  }
+}
+
+async function uploadReportPDF(file) {
+  const r = records.find(x => x.id === activeId);
+  if (!r || !file) return;
+  const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const uploadUrl = `${DEFAULT_URL}/storage/v1/object/lab-reports/${fileName}`;
+
+  showToast('⏳ Uploading PDF report...', 'bg-purple-600');
+  try {
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'apikey': DEFAULT_KEY,
+        'Authorization': `Bearer ${currentAuthToken || DEFAULT_KEY}`,
+        'Content-Type': file.type || 'application/pdf',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      throw new Error(errTxt);
+    }
+    const publicUrl = `${DEFAULT_URL}/storage/v1/object/public/lab-reports/${fileName}`;
+    r.pdfUrl = publicUrl;
+    r.reportReceived = todayISO();
+    r.status = 'Report Received';
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    showToast('✅ PDF uploaded & report marked received!', 'bg-teal-600');
+  } catch (err) {
+    showToast('Upload failed: ' + err.message, 'bg-rose-500');
+  }
+}
+
+// ── Mark Received ─────────────────────────────────────────────────
+async function markReceived() {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  r.reportReceived = todayISO();
+  r.status = 'Report Received';
+  const btn = document.getElementById('markRecvBtn');
+  btn.textContent = '⏳ Saving…';
+  try {
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    showToast('✅ Received date saved', 'bg-teal-600');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-rose-500');
+  }
+}
+
+// ── WhatsApp Template Management ──────────────────────────────────
+const DEFAULT_WA_TEMPLATE = `Dear {name},
+
+Your *{test_name}* report from Baby Scan clinic is now ready.{pdf_line}
+
+We do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.
+
+રિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.
+
+Thank you 🏥`;
+
+function getWATemplate() {
+  return localStorage.getItem('bs_lab_wa_template') || waTemplate || DEFAULT_WA_TEMPLATE;
+}
+
+function openTemplateSheet() {
+  document.getElementById('tpl_text').value = getWATemplate();
+  openSheet('templateSheet');
+}
+
+function closeTemplateSheet() {
+  closeSheet('templateSheet');
+}
+
+function saveTemplate() {
+  const val = document.getElementById('tpl_text').value;
+  waTemplate = val;
+  savePresetSettings();
+  showToast('✅ WhatsApp template saved & synced!', 'bg-emerald-600');
+  closeTemplateSheet();
+}
+
+function resetTemplateToDefault() {
+  if (confirm('Reset template to default?')) {
+    waTemplate = DEFAULT_WA_TEMPLATE;
+    localStorage.setItem('bs_lab_wa_template', DEFAULT_WA_TEMPLATE);
+    savePresetSettings();
+    document.getElementById('tpl_text').value = DEFAULT_WA_TEMPLATE;
+    showToast('Template reset to default & synced', 'bg-amber-600');
+  }
+}
+
+// ── Send WhatsApp ─────────────────────────────────────────────────
+async function sendWhatsApp() {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  const mobile = cleanMobile(r.mobile);
+  if (!mobile) { showToast('No mobile number saved', 'bg-rose-500'); return; }
+
+  const name = r.patient.trim().split(' ')[0];
+  const proc = r.procedure || '';
+  let testsStr = '';
+  if (r.reports && r.reports.length > 0) {
+    const unsentReps = r.reports.filter(rp => !rp.sent);
+    const targetReps = unsentReps.length > 0 ? unsentReps : r.reports;
+    testsStr = targetReps.map(rp => rp.name).join(', ');
+  }
+  let testName = proc;
+  if (proc && testsStr) {
+    testName = `${proc} - ${testsStr}`;
+  } else if (testsStr) {
+    testName = testsStr;
+  }
+  const pdfLine = r.pdfUrl ? `\n\n📄 *Download Report PDF:*\n${r.pdfUrl}` : '';
+
+  const tpl = getWATemplate();
+  const msg = tpl
+    .replace(/\{name\}/g, name)
+    .replace(/\{patient_name\}/g, r.patient)
+    .replace(/\{test_name\}/g, testName)
+    .replace(/\{pdf_line\}/g, pdfLine);
+
+  window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  const today = todayISO();
+  (r.reports || []).forEach(rp => { if (!rp.sent) rp.sent = today; });
+  r.reportSent = today;
+  r.status = 'Delivered';
+
+  const btn = document.getElementById('waSendBtn');
+  btn.textContent = '⏳ Saving…';
+  btn.disabled = true;
+  try {
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    showToast('✅ Saved to Supabase', 'bg-emerald-600');
+  } catch(e) {
+    showToast('WhatsApp sent but save failed: ' + e.message, 'bg-amber-600');
+  } finally {
+    btn.textContent = '📱 Resend via WhatsApp';
+    btn.disabled = false;
+  }
+}
+
+// ── Individual Report Action Handlers ──────────────────────────────
+let actionReportName = null;
+
+function openReportActionModal(evt, recordId, reportName) {
+  if (evt) evt.stopPropagation();
+  const r = records.find(x => String(x.id) === String(recordId));
+  if (!r) return;
+  activeId = String(recordId);
+  actionReportName = reportName;
+
+  const rp = (r.reports || []).find(x => x.name === reportName) || { name: reportName };
+
+  document.getElementById('ras_title').textContent = `🧪 ${reportName}`;
+  document.getElementById('ras_patient').textContent = `${r.patient} · ${r.procedure}`;
+
+  const awaitBtn = document.getElementById('ras_await_btn');
+  const recvBtn  = document.getElementById('ras_recv_btn');
+  const sentBtn  = document.getElementById('ras_sent_btn');
+
+  const isWait = !rp.received && !rp.sent;
+  const isRecv = rp.received && !rp.sent;
+  const isSent = !!rp.sent;
+
+  if (awaitBtn) awaitBtn.className = `py-3 rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-1 transition-all ${isWait ? 'bg-slate-800 text-white ring-2 ring-slate-400' : 'bg-slate-600 text-white active:bg-slate-700'}`;
+  if (recvBtn)  recvBtn.className  = `py-3 rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-1 transition-all ${isRecv ? 'bg-amber-700 text-white ring-2 ring-amber-300' : 'bg-amber-600 text-white active:bg-amber-700'}`;
+  if (sentBtn)  sentBtn.className  = `py-3 rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-1 transition-all ${isSent ? 'bg-emerald-700 text-white ring-2 ring-emerald-300' : 'bg-purple-700 text-white active:bg-purple-800'}`;
+
+  openSheet('reportActionSheet');
+}
+
+function closeReportActionSheet() {
+  closeSheet('reportActionSheet');
+}
+
+async function doActionSendWA() {
+  if (!actionReportName) return;
+  const name = actionReportName;
+  closeReportActionSheet();
+  await sendSingleReport(name);
+}
+
+async function doActionToggleAwaited() {
+  if (!actionReportName) return;
+  const name = actionReportName;
+  closeReportActionSheet();
+  await toggleReportStatus(activeId, name, 'awaited');
+}
+
+async function doActionToggleRecv() {
+  if (!actionReportName) return;
+  const name = actionReportName;
+  closeReportActionSheet();
+  await toggleReportStatus(activeId, name, 'received');
+}
+
+async function doActionToggleSent() {
+  if (!actionReportName) return;
+  const name = actionReportName;
+  closeReportActionSheet();
+  await toggleReportStatus(activeId, name, 'sent');
+}
+
+async function toggleReportStatus(recordId, reportName, statusType) {
+  const r = records.find(x => String(x.id) === String(recordId));
+  if (!r) return;
+  r.reports = getReportsForRecord(r);
+
+  let rp = r.reports.find(x => x.name === reportName);
+  if (!rp) {
+    rp = { name: reportName, received: '', sent: '' };
+    r.reports.push(rp);
+  }
+
+  const today = todayISO();
+  if (statusType === 'awaited') {
+    rp.received = '';
+    rp.sent = '';
+  } else if (statusType === 'received') {
+    rp.received = today;
+    rp.sent = '';
+  } else if (statusType === 'sent') {
+    if (!rp.received) rp.received = today;
+    rp.sent = today;
+  }
+
+  const anyRecv = r.reports.some(x => x.received || x.sent);
+  const allSent = r.reports.length > 0 && r.reports.every(x => x.sent);
+
+  if (allSent) {
+    r.reportSent = today;
+    r.status = 'Delivered';
+  } else if (anyRecv) {
+    r.reportReceived = r.reports.find(x => x.received)?.received || today;
+    r.reportSent = '';
+    r.status = 'Report Received';
+  } else {
+    r.reportReceived = '';
+    r.reportSent = '';
+    r.status = 'Pending';
+  }
+
+  try {
+    await updateRow(r);
+    updateStats();
+    renderCards();
+    openDetail(recordId);
+    showToast(`✅ ${reportName} set to ${statusType.toUpperCase()}`, 'bg-teal-600');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-rose-500');
+  }
+}
+
+// ── Send Single Report via WhatsApp ───────────────────────────────
+async function sendSingleReport(reportName) {
+  const r = records.find(x => String(x.id) === String(activeId));
+  if (!r) return;
+  r.reports = getReportsForRecord(r);
+  const mobile = cleanMobile(r.mobile);
+  if (!mobile) { showToast('No mobile number saved', 'bg-rose-500'); return; }
+
+  const name = r.patient.trim().split(' ')[0];
+  const proc = r.procedure || '';
+  const testName = (proc && reportName) ? `${proc} - ${reportName}` : (reportName || proc);
+  const pdfLine = r.pdfUrl ? `\n\n📄 *Download Report PDF:*\n${r.pdfUrl}` : '';
+
+  const tpl = getWATemplate();
+  const msg = tpl
+    .replace(/\{name\}/g, name)
+    .replace(/\{patient_name\}/g, r.patient)
+    .replace(/\{test_name\}/g, testName)
+    .replace(/\{pdf_line\}/g, pdfLine);
+
+  window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  const today = todayISO();
+  if (!r.reports) r.reports = [];
+  let rp = r.reports.find(x => x.name === reportName);
+  if (!rp) {
+    rp = { name: reportName, received: today, sent: today };
+    r.reports.push(rp);
+  } else {
+    rp.sent = today;
+    if (!rp.received) rp.received = today;
+  }
+  if (!r.reportReceived) r.reportReceived = today;
+  if (r.reports.every(x => x.sent)) {
+    r.reportSent = today;
+    r.status = 'Delivered';
+  } else {
+    r.status = 'Report Received';
+  }
+
+  try {
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    showToast(`✅ ${reportName} stamped in Supabase`, 'bg-emerald-600');
+  } catch(e) {
+    showToast('WhatsApp sent but save failed: ' + e.message, 'bg-amber-600');
+  }
+}
+
+// ── Edit Form Initialization ──────────────────────────────────────
+function editActive() {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  document.getElementById('formTitle').textContent = 'Edit Entry';
+  document.getElementById('f_date').value      = r.date;
+  document.getElementById('f_patient').value   = r.patient;
+  document.getElementById('f_mobile').value    = r.mobile;
+  document.getElementById('f_doctor').value    = r.doctor;
+  document.getElementById('f_procedure').value = r.procedure;
+  document.getElementById('f_lab').value       = r.lab;
+  document.getElementById('f_payment').value   = r.payment;
+  document.getElementById('f_comment').value   = r.comment;
+  document.getElementById('f_received').value  = r.reportReceived;
+  document.getElementById('f_sent').value      = r.reportSent;
+  document.getElementById('reportFields').classList.remove('hidden');
+  document.getElementById('formStatus').classList.add('hidden');
+  buildReportCheckboxes((r.reports || []).map(rp => rp.name));
+  document.getElementById('addReportRow').classList.add('hidden');
+  openSheet('formSheet');
+}
+
+// ── Delete Entry ──────────────────────────────────────────────────
+async function deleteActive() {
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  showToast('🗑 Deleting…', 'bg-slate-600');
+  try {
+    await deleteRow(activeId);
+    records = records.filter(x => x.id !== activeId);
+    updateStats(); renderCards();
+    const wasEditing = !!activeId;
+    closeSheet('formSheet');
+    if (wasEditing && entry.id) {
+      openDetail(entry.id);
+    } else {
+      closeAllSheets();
+    }
+    showToast('🗑 Entry deleted', 'bg-rose-500');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-rose-500');
+  }
+}
+
+// ── Open Add Form ─────────────────────────────────────────────────
+function openAddSheet() {
+  activeId = null;
+  document.getElementById('formTitle').textContent = 'Add Lab Entry';
+  ['f_patient','f_mobile','f_doctor','f_comment'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_date').value      = todayISO();
+  document.getElementById('f_procedure').value = '';
+  document.getElementById('f_lab').value       = '';
+  document.getElementById('f_payment').value   = '';
+  document.getElementById('f_received').value  = '';
+  document.getElementById('f_sent').value      = '';
+  document.getElementById('reportFields').classList.add('hidden');
+  document.getElementById('formStatus').classList.add('hidden');
+  if (document.getElementById('addProcRow')) document.getElementById('addProcRow').classList.add('hidden');
+  if (document.getElementById('addLabRow')) document.getElementById('addLabRow').classList.add('hidden');
+  if (document.getElementById('addReportRow')) document.getElementById('addReportRow').classList.add('hidden');
+  buildReportCheckboxes([]);
+  openSheet('formSheet');
+}
+
+// ── Save Form Entry ───────────────────────────────────────────────
+async function saveEntry() {
+  const date    = document.getElementById('f_date').value.trim();
+  const patient = document.getElementById('f_patient').value.trim().toUpperCase();
+  const proc    = document.getElementById('f_procedure').value;
+  const lab     = document.getElementById('f_lab').value;
+
+  if (!date || !patient || !proc || !lab) {
+    setFormStatus('Please fill Date, Patient Name, Procedure and Lab', 'bg-rose-100 text-rose-700');
+    return;
+  }
+
+  const existingReports = activeId
+    ? (records.find(x => String(x.id) === String(activeId)) || {}).reports || []
+    : [];
+  const checkedNames = getCheckedReports();
+  const mergedReports = checkedNames.map(name => {
+    const prev = existingReports.find(rp => rp.name === name);
+    return {
+      name,
+      received: prev ? (prev.received || '') : '',
+      sent: prev ? (prev.sent || '') : ''
+    };
+  });
+
+  const entry = {
+    id:             activeId || `lab_${Date.now()}`,
+    date, patient,
+    mobile:         document.getElementById('f_mobile').value.trim(),
+    doctor:         document.getElementById('f_doctor').value.trim(),
+    procedure:      proc, lab,
+    payment:        document.getElementById('f_payment').value.trim(), // Strictly lab payment amount
+    comment:        document.getElementById('f_comment').value.trim(),
+    reportReceived: document.getElementById('f_received').value || '',
+    reportSent:     document.getElementById('f_sent').value     || '',
+    reports:        mergedReports,
+  };
+
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = '⏳ Saving to Supabase…';
+  btn.disabled = true;
+
+  try {
+    if (activeId) {
+      await updateRow(entry);
+      const idx = records.findIndex(x => x.id === activeId);
+      if (idx >= 0) records[idx] = entry;
+      updateStats();
+      renderCards();
+      closeSheet('formSheet');
+      openDetail(entry.id);
+      showToast('✅ Entry updated', 'bg-purple-700');
+    } else {
+      await appendRow(entry);
+      records.unshift(entry);
+      updateStats();
+      renderCards();
+      closeAllSheets();
+      showToast('✅ Entry saved to Supabase', 'bg-purple-700');
+    }
+  } catch(e) {
+    setFormStatus('Error: ' + e.message, 'bg-rose-100 text-rose-700');
+  } finally {
+    btn.textContent = '💾 Save Entry';
+    btn.disabled = false;
+  }
+}
+
+// ── Sheet UI Helpers ──────────────────────────────────────────────
+function openSheet(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('hidden');
+  document.getElementById('backdrop').classList.remove('hidden');
+  setTimeout(() => el.style.transform = 'translateY(0)', 10);
+}
+function closeSheet(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.transform = 'translateY(100%)';
+  setTimeout(() => {
+    el.classList.add('hidden');
+    const remainingOpen = [...document.querySelectorAll('.modal-sheet')].filter(s => s.id !== id && !s.classList.contains('hidden') && s.style.transform !== 'translateY(100%)');
+    if (remainingOpen.length === 0) {
+      document.getElementById('backdrop').classList.add('hidden');
+    }
+  }, 300);
+}
+
+function openAddTestModal() {
+  const r = records.find(x => String(x.id) === String(activeId));
+  if (!r) return;
+  document.getElementById('ats_patient').textContent = `${r.patient} · ${r.procedure}`;
+  const existing = (getReportsForRecord(r) || []).map(x => x.name);
+  const allAvailable = [...new Set([...BASE_REPORTS, ...customReports])].filter(t => !removedReports.includes(t) || existing.includes(t));
+
+  const wrap = document.getElementById('ats_quick_buttons');
+  wrap.innerHTML = allAvailable.map(t => {
+    const isAdded = existing.includes(t);
+    if (isAdded) {
+      return `<span class="text-[11px] px-3 py-1.5 rounded-xl bg-slate-100 text-slate-400 font-bold border border-slate-200">✓ ${t}</span>`;
+    }
+    return `<button onclick="doAddQuickTest('${t}')" class="text-[11px] px-3 py-1.5 rounded-xl bg-purple-100 text-purple-800 font-bold border border-purple-200 active:scale-95 transition-all">+ ${t}</button>`;
+  }).join('');
+
+  openSheet('addTestSheet');
+}
+
+async function doAddQuickTest(testName) {
+  closeSheet('addTestSheet');
+  await addTestToPatient(testName);
+}
+
+async function doAddCustomTest() {
+  const val = document.getElementById('ats_custom_input').value.trim().toUpperCase();
+  if (!val) return;
+  document.getElementById('ats_custom_input').value = '';
+  closeSheet('addTestSheet');
+  await addTestToPatient(val);
+}
+
+async function addTestToPatient(testName) {
+  const r = records.find(x => String(x.id) === String(activeId));
+  if (!r) return;
+  if (!r.reports) r.reports = getReportsForRecord(r);
+  if (!r.reports.some(x => x.name === testName)) {
+    r.reports.push({ name: testName, received: '', sent: '' });
+    try {
+      await updateRow(r);
+      updateStats();
+      renderCards();
+      openDetail(activeId);
+      showToast(`✅ Added ${testName}`, 'bg-teal-600');
+    } catch(e) {
+      showToast('Error: ' + e.message, 'bg-rose-500');
+    }
+  }
+}
+
+function closeAllSheets() {
+  closeSheet('detailSheet');
+  closeSheet('formSheet');
+  closeSheet('templateSheet');
+  closeSheet('reportActionSheet');
+  closeSheet('addTestSheet');
+  closeSheet('configPanel');
+  document.getElementById('backdrop').classList.add('hidden');
+}
+
+function showToast(msg, cls = 'bg-slate-800') {
+  const ti = document.getElementById('toastInner');
+  ti.className = `rounded-2xl px-4 py-3 text-xs font-bold text-center shadow-xl text-white backdrop-blur-md ${cls}`;
+  ti.textContent = msg;
+  document.getElementById('toast').classList.remove('hidden');
+  setTimeout(() => document.getElementById('toast').classList.add('hidden'), 2800);
+}
+
+function setFormStatus(msg, cls) {
+  const el = document.getElementById('formStatus');
+  el.className = `rounded-xl px-4 py-3 text-xs font-bold text-center ${cls}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+</script>
+</body>
+</html>
