@@ -586,17 +586,31 @@
      ════════════════════════════════════════════════════════════════ -->
 <script>
 // ── Supabase Config ───────────────────────────────────────────────
-const DEFAULT_URL = localStorage.getItem('sb_url') || 'https://frtfzjchlaraywdmlhdb.supabase.co';
-const DEFAULT_KEY = localStorage.getItem('sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZydGZ6amNobGFyYXl3ZG1saGRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MTI4ODgsImV4cCI6MjEwNDI4ODg4OH0.gdD62zBhe8jSUSGXapq1tLd84S6OAXMgqJUji-_RFw4';
+const DEFAULT_URL = 'https://frtfzjchlaraywdmlhdb.supabase.co';
+const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZydGZ6amNobGFyYXl3ZG1saGRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MTI4ODgsImV4cCI6MjEwNDI4ODg4OH0.gdD62zBhe8jSUSGXapq1tLd84S6OAXMgqJUji-_RFw4';
 let currentAuthToken = localStorage.getItem('sb_token') || '';
+
+function getSupabaseUrl() {
+  const u = (localStorage.getItem('sb_url') || DEFAULT_URL).trim();
+  return u.replace(/\/+$/, '');
+}
+
+function getSupabaseKey() {
+  return (localStorage.getItem('sb_key') || DEFAULT_KEY).trim();
+}
+
+function getAuthToken() {
+  const token = localStorage.getItem('sb_token');
+  return token || currentAuthToken || getSupabaseKey();
+}
 
 function toggleConfig() {
   const pnl = document.getElementById('configPanel');
   if (!pnl) return;
   const isHidden = pnl.classList.contains('hidden') || pnl.style.transform === 'translateY(100%)' || pnl.style.transform === '';
   if (isHidden) {
-    document.getElementById('cfgUrl').value = localStorage.getItem('sb_url') || DEFAULT_URL;
-    document.getElementById('cfgKey').value = localStorage.getItem('sb_key') || DEFAULT_KEY;
+    document.getElementById('cfgUrl').value = getSupabaseUrl();
+    document.getElementById('cfgKey').value = getSupabaseKey();
     document.getElementById('cfgEmail').value = localStorage.getItem('sb_email') || '';
     document.getElementById('cfgPassword').value = localStorage.getItem('sb_pwd') || '';
     openSheet('configPanel');
@@ -606,8 +620,8 @@ function toggleConfig() {
 }
 
 async function doSupabaseLoginSilently() {
-  const url = localStorage.getItem('sb_url') || DEFAULT_URL;
-  const key = localStorage.getItem('sb_key') || DEFAULT_KEY;
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
   const em = localStorage.getItem('sb_email');
   const pwd = localStorage.getItem('sb_pwd');
   if (!url || !key || !em || !pwd) return false;
@@ -618,7 +632,11 @@ async function doSupabaseLoginSilently() {
       headers: { 'apikey': key, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: em, password: pwd })
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      localStorage.removeItem('sb_token');
+      currentAuthToken = '';
+      return false;
+    }
     const data = await res.json();
     currentAuthToken = data.access_token;
     localStorage.setItem('sb_token', data.access_token);
@@ -637,6 +655,13 @@ async function saveConfig() {
   if (!url || !key) {
     showToast('Please enter URL and Anon Key', 'bg-rose-500');
     return;
+  }
+
+  const oldUrl = localStorage.getItem('sb_url');
+  const oldKey = localStorage.getItem('sb_key');
+  if (oldUrl !== url || oldKey !== key) {
+    localStorage.removeItem('sb_token');
+    currentAuthToken = '';
   }
 
   localStorage.setItem('sb_url', url);
@@ -661,10 +686,14 @@ async function saveConfig() {
 }
 
 async function sbFetch(path, opts = {}) {
-  const url = `${DEFAULT_URL}/rest/v1/${path}`;
+  const baseUrl = getSupabaseUrl();
+  const key = getSupabaseKey();
+  const token = getAuthToken();
+
+  const url = `${baseUrl}/rest/v1/${path}`;
   const headers = {
-    'apikey': DEFAULT_KEY,
-    'Authorization': `Bearer ${currentAuthToken || DEFAULT_KEY}`,
+    'apikey': key,
+    'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json',
     'Prefer': 'return=representation'
   };
@@ -1459,15 +1488,18 @@ async function uploadReportPDF(file) {
   const r = records.find(x => x.id === activeId);
   if (!r || !file) return;
   const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const uploadUrl = `${DEFAULT_URL}/storage/v1/object/lab-reports/${fileName}`;
+  const baseUrl = getSupabaseUrl();
+  const key = getSupabaseKey();
+  const token = getAuthToken();
+  const uploadUrl = `${baseUrl}/storage/v1/object/lab-reports/${fileName}`;
 
   showToast('⏳ Uploading PDF report...', 'bg-purple-600');
   try {
     const res = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
-        'apikey': DEFAULT_KEY,
-        'Authorization': `Bearer ${currentAuthToken || DEFAULT_KEY}`,
+        'apikey': key,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': file.type || 'application/pdf',
         'x-upsert': 'true'
       },
@@ -1477,7 +1509,7 @@ async function uploadReportPDF(file) {
       const errTxt = await res.text();
       throw new Error(errTxt);
     }
-    const publicUrl = `${DEFAULT_URL}/storage/v1/object/public/lab-reports/${fileName}`;
+    const publicUrl = `${baseUrl}/storage/v1/object/public/lab-reports/${fileName}`;
     r.pdfUrl = publicUrl;
     r.reportReceived = todayISO();
     r.status = 'Report Received';
